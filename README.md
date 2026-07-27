@@ -1,44 +1,65 @@
 # InfraNexia — Absensi Magang
 
-Aplikasi absensi peserta magang berbasis **pengenalan wajah**, dibangun dengan
+Sistem absensi peserta magang berbasis **pengenalan wajah**, dibangun dengan
 Next.js (App Router) + Firebase. Antarmuka dioptimalkan untuk ponsel dan dapat
 dipasang sebagai PWA.
 
 **Seluruhnya berjalan di paket Firebase gratis (Spark).** Logika server berada
-di API route Next.js, bukan Cloud Functions, sehingga tidak perlu upgrade Blaze
-dan tidak perlu kartu kredit.
+di API route Next.js, bukan Cloud Functions, sehingga tidak perlu upgrade Blaze.
 
 ## Arsitektur
 
 ```
-Browser (Next.js PWA)                    Server (API route Next.js)
- ├── face-api.js → descriptor 128-d ──►  POST /api/absen   · cocokkan wajah + catat
- ├── liveness challenge acak             POST /api/wajah   · daftarkan wajah
- └── GPS (opsional)                      POST /api/users   · buat / hapus / sinkron
-                                                 │  Firebase Admin SDK
-                                                 ▼
-                                         Firestore (users, faceData, absensi, config)
-                                         Firebase Auth
+Browser (Next.js PWA)                 Server (API route Next.js)
+ ├── face-api.js → descriptor 128-d   POST /api/absen      · cocokkan wajah + catat
+ ├── liveness challenge acak          POST /api/wajah      · daftarkan wajah
+ ├── GPS (opsional)                   POST /api/izin       · ajukan & setujui izin
+ └── onSnapshot (dashboard live)      POST /api/users      · kelola akun & data
+                                      GET  /api/status     · diagnosa konfigurasi
+                                      GET  /api/cron/alpa  · tandai alpa harian
+                                             │  Firebase Admin SDK
+                                             ▼
+                                      Firestore · Firebase Auth
 ```
 
 ### Prinsip keamanan
 
-Koleksi `absensi` dan `faceData` **tidak bisa disentuh dari browser** — Firestore
-Rules menutupnya rapat. Semua penulisan melewati API route yang memakai Admin SDK.
+Koleksi `absensi`, `faceData`, dan `izin` **tidak bisa ditulis dari browser** —
+Firestore Rules menutupnya rapat. Semua penulisan melewati API route.
 
 | Ancaman | Penanganan |
 |---|---|
-| Mengubah jam perangkat agar tidak terlambat | Jam & tanggal diambil dari waktu server (zona `Asia/Jakarta`) |
-| Menulis absensi lewat console browser | Rules menolak semua tulis dari client; hanya Admin SDK yang bisa |
-| Mencuri descriptor wajah orang lain | `faceData` tidak bisa dibaca **maupun** ditulis client; pencocokan di server |
-| Absen dari luar kantor | Geofencing haversine divalidasi di server terhadap titik & radius kantor |
-| Foto/rekaman wajah di layar lain | Liveness challenge **acak** (kedip / toleh kanan / toleh kiri / buka mulut) |
-| Mengirim ulang payload absen yang sama | Server menyimpan sidik jari 20 descriptor terakhir dan menolak duplikat persis |
-| Akun dihapus tapi masih bisa login | `/api/users` menghapus akun Auth, profil, data wajah, dan riwayat sekaligus |
+| Mengubah jam perangkat agar tidak terlambat | Jam & tanggal dari waktu server, zona `Asia/Jakarta` |
+| Menulis absensi lewat console browser | Rules menolak semua tulis dari client |
+| Mencuri descriptor wajah orang lain | `faceData` tertutup total dari browser; pencocokan di server |
+| Absen dari luar kantor | Geofencing haversine divalidasi server |
+| Foto/rekaman wajah di layar lain | Liveness challenge **acak** (kedip / toleh kanan / kiri / buka mulut) |
+| Mengirim ulang payload absen yang sama | Server menolak sidik descriptor yang identik dengan 20 terakhir |
+| Akun dihapus tapi masih bisa login | Penghapusan mencakup akun Auth, profil, wajah, dan riwayat |
 
 > Liveness berjalan di sisi klien sehingga sifatnya **penghalang**, bukan jaminan
-> mutlak. Yang benar-benar mengunci sistem adalah pencocokan wajah di server,
-> waktu server, dan geofencing.
+> mutlak. Yang mengunci sistem adalah pencocokan wajah di server, waktu server,
+> dan geofencing.
+
+## Fitur
+
+**Absensi** — verifikasi wajah dengan dua tantangan liveness acak, geofencing
+opsional, jam dari server.
+
+**Izin & sakit** — peserta mengajukan lewat menu Izin, pembimbing menyetujui atau
+menolak. Yang disetujui otomatis tercatat di riwayat kehadiran.
+
+**Alpa otomatis** — cron harian pukul 17.00 WIB menandai peserta tanpa catatan
+sebagai alpa, melewati akhir pekan.
+
+**Rekap & laporan** — halaman detail per peserta dengan rekap bulanan, ekspor
+`.xlsx`, dan laporan kehadiran siap cetak berkop resmi.
+
+**Pengelolaan akun** — admin membuat akun, kredensial dikirim otomatis lewat
+email atau WhatsApp. Ada pemeriksa kesehatan data untuk mendeteksi akun tanpa
+profil dan sebaliknya.
+
+**Dashboard langsung** — angka kehadiran hari ini berubah sendiri tanpa refresh.
 
 ---
 
@@ -51,43 +72,41 @@ Rules menutupnya rapat. Semua penulisan melewati API route yang memakai Admin SD
 3. **Firestore Database → Create database** (mode production)
 4. **Project Settings → General → Your apps** → tambahkan Web app, salin konfigurasi
 
-Tidak perlu upgrade ke Blaze.
-
 ### 2. Service account
 
-Kunci ini dipakai server untuk menulis data atas nama sistem. **Jangan pernah
-di-commit ke Git.**
+Kunci ini dipakai server untuk menulis data. **Jangan pernah di-commit.**
 
 1. **Project Settings → Service accounts → Generate new private key** → unduh JSON
-2. Ubah menjadi satu baris base64:
+2. Ubah menjadi satu baris base64 dan langsung tulis ke `.env.local`:
+
+   ```powershell
+   $f = Get-ChildItem "$env:USERPROFILE" -Filter "*firebase-adminsdk*.json" -Recurse -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+   $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($f.FullName))
+   Add-Content -Path ".env.local" -Value "`nFIREBASE_SERVICE_ACCOUNT=$b64"
+   ```
 
    ```bash
    # macOS / Linux
-   base64 -i serviceAccountKey.json | tr -d '\n'
-
-   # Windows PowerShell
-   [Convert]::ToBase64String([IO.File]::ReadAllBytes("serviceAccountKey.json"))
+   echo "FIREBASE_SERVICE_ACCOUNT=$(base64 -i serviceAccountKey.json | tr -d '\n')" >> .env.local
    ```
-
-3. Tempel hasilnya ke `.env.local`:
-
-   ```
-   FIREBASE_SERVICE_ACCOUNT=eyJ0eXBlIjoic2VydmljZV9hY2NvdW50Iiw...
-   ```
-
-   Di Vercel: **Settings → Environment Variables**, nama `FIREBASE_SERVICE_ACCOUNT`,
-   nilai string base64 tadi, centang semua environment.
 
 > Variabel ini **tanpa** awalan `NEXT_PUBLIC_` — itu disengaja, supaya tidak
 > pernah ikut terkirim ke browser.
 
-### 3. Environment lainnya
+### 3. Environment
 
 ```bash
 cp .env.local.example .env.local
 ```
 
-Isi nilai `NEXT_PUBLIC_FIREBASE_*` dari Firebase Console.
+| Variabel | Wajib | Keterangan |
+|---|---|---|
+| `NEXT_PUBLIC_FIREBASE_*` | ya | Enam nilai dari Firebase Console |
+| `FIREBASE_SERVICE_ACCOUNT` | ya | Base64 kunci service account |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | tidak | Pengiriman email akun — lihat `PANDUAN-EMAIL.md` |
+| `NEXT_PUBLIC_APP_URL` | tidak | Alamat aplikasi, dipakai pada tautan di email |
+| `CRON_SECRET` | tidak | Melindungi endpoint cron. Isi bila deploy ke Vercel |
 
 ### 4. Dependency & model wajah
 
@@ -96,32 +115,28 @@ npm install
 ./download-models.sh      # mengunduh 7 file model ke public/models
 ```
 
-### 5. Deploy Firestore Rules
+### 5. Deploy Rules & Index
+
+Index wajib, karena penyaringan riwayat memakai rentang tanggal.
 
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase use --add        # pilih project Firebase kamu
+firebase use --add
 firebase deploy --only firestore:rules,firestore:indexes
 ```
 
 ### 6. Membuat admin pertama
 
 Rules menutup pembuatan dokumen `users` dari client, jadi admin pertama dibuat
-manual satu kali:
+lewat skrip:
 
-1. **Authentication → Users → Add user** → isi email & password
-2. Salin **User UID**-nya
-3. **Firestore → Start collection** `users` → **Document ID = UID tadi**, isi:
+```bash
+node scripts/buat-admin.mjs admin@contoh.com "PasswordKuat123" "Admin InfraNexia"
+```
 
-   | Field | Tipe | Nilai |
-   |---|---|---|
-   | `name` | string | Nama Admin |
-   | `email` | string | email yang sama |
-   | `role` | string | `admin` |
-   | `status` | string | `aktif` |
-
-4. Login. Selanjutnya semua akun dibuat lewat menu **Kelola**.
+Skrip membuat akun bila belum ada, memperbaiki profilnya, dan menjadikannya
+admin. Di akhir ia mencetak daftar seluruh akun beserta statusnya.
 
 ### 7. Jalankan
 
@@ -134,34 +149,34 @@ npm run dev     # http://localhost:3000
 
 ---
 
-## Setelah upgrade dari versi lama
+## Deploy ke Vercel
 
-Peserta yang sudah mendaftar wajah sebelum versi ini belum punya penanda
-`wajahTerdaftar`. Login sebagai admin → **Kelola → Pengaturan Absensi →
-Pemeliharaan → Sinkronkan status pendaftaran wajah**. Cukup dijalankan sekali.
+1. Tambahkan seluruh variabel environment di **Settings → Environment Variables**,
+   centang **Production** dan **Preview**
+2. `git push` — Vercel membangun ulang otomatis
+3. Buka `/api/status` untuk memastikan kredensial terbaca
+
+Cron alpa harian sudah dikonfigurasi di `vercel.json` (10.00 UTC = 17.00 WIB).
+Isi `CRON_SECRET` agar endpoint itu tidak bisa dipanggil sembarang orang.
+
+Untuk menandai alpa pada tanggal tertentu secara manual:
+
+```
+GET /api/cron/alpa?tanggal=2026-07-27
+Authorization: Bearer <CRON_SECRET>
+```
 
 ---
 
-## Pengaturan dari aplikasi
+## Diagnosa
 
-Menu **Kelola → Pengaturan Absensi** (khusus admin), tersimpan di
-`config/absensi` dan langsung berlaku tanpa deploy ulang:
+`/api/status` menampilkan status konfigurasi tanpa membocorkan rahasia: apakah
+service account terbaca, apakah project-nya cocok, dan apakah koneksi ke Firebase
+berhasil. Buka ini lebih dulu setiap kali ada yang tidak beres.
 
-- Jam masuk, jam pulang, toleransi keterlambatan, jeda minimum absen pulang
-- Ambang ketelitian wajah (0.35–0.65; makin kecil makin ketat)
-- Titik kantor (latitude/longitude, bisa diambil dari GPS perangkat), radius, dan
-  saklar aktif/nonaktif geofencing
-
----
-
-## Alur pemakaian
-
-1. **Magang** login → **Daftar Wajah** → ambil 3 sampel → simpan
-2. **Absensi** → selesaikan 2 tantangan liveness acak → **Absen Sekarang**.
-   Server menentukan ini absen masuk atau pulang, jamnya, dan statusnya
-   (`hadir` / `terlambat`)
-3. **Admin / Pembimbing** memantau di **Dashboard** dan **Riwayat**, ekspor
-   CSV atau cetak PDF
+Menu **Kelola → Kesehatan Data** memeriksa keselarasan antara akun Firebase Auth
+dan dokumen profil. Akun tanpa profil akan tertahan di layar pembuka; profil
+tanpa akun muncul sebagai peserta hantu di statistik.
 
 ---
 
@@ -169,26 +184,27 @@ Menu **Kelola → Pengaturan Absensi** (khusus admin), tersimpan di
 
 | Koleksi | Dokumen | Isi |
 |---|---|---|
-| `users` | `{uid}` | name, email, role, nim, kampus, jurusan, status, wajahTerdaftar |
+| `users` | `{uid}` | name, email, role, nim, kampus, jurusan, telepon, status, wajahTerdaftar |
 | `faceData` | `{uid}` | descriptors (array 128 angka), sidikTerakhir, updatedAt |
-| `absensi` | `{uid}_{YYYY-MM-DD}` | userId, tanggal, jamMasuk, jamPulang, status, matchScore, koordinat, jarakKantor |
+| `absensi` | `{uid}_{YYYY-MM-DD}` | userId, tanggal, jamMasuk, jamPulang, status, matchScore, koordinat |
+| `izin` | `{auto}` | userId, jenis, alasan, tanggal[], status, diprosesOleh |
 | `config` | `absensi` | jam kerja, toleransi, threshold wajah, geofencing |
+
+Status absensi: `hadir`, `terlambat`, `izin`, `sakit`, `alpha`.
 
 ---
 
-## Catatan hosting
+## Pengaturan dari aplikasi
 
-API route butuh runtime Node.js, jadi aplikasi harus di-deploy sebagai aplikasi
-Next.js biasa (Vercel, Netlify, Railway, VPS). **Static export tidak didukung.**
-Pada Vercel paket Hobby seluruhnya masih gratis.
+Menu **Kelola → Pengaturan Absensi** (khusus admin), tersimpan di
+`config/absensi` dan langsung berlaku tanpa deploy ulang: jam kerja, toleransi,
+jeda minimum absen pulang, ambang ketelitian wajah, serta titik dan radius kantor.
 
 ---
 
 ## Roadmap
 
-- Modul izin & sakit dengan approval pembimbing
-- Penandaan alpa otomatis harian (cron job)
-- Halaman detail per peserta magang
-- Ekspor `.xlsx` asli dan sertifikat akhir magang (PDF)
-- Dashboard realtime dengan `onSnapshot`
-- Pagination berbasis cursor untuk riwayat berukuran besar
+- Notifikasi pengingat absen lewat push notification
+- Mode gelap
+- Catatan penilaian pembimbing pada halaman peserta
+- Sertifikat akhir magang dengan tanda tangan digital

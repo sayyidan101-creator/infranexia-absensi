@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import Protected from "@/components/Protected";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -8,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import Avatar from "@/components/Avatar";
 import PengaturanAbsensi from "@/components/PengaturanAbsensi";
 import KartuKredensial, { HasilAkun } from "@/components/KartuKredensial";
+import KesehatanData from "@/components/KesehatanData";
 import { CountUp, Skeleton, Kosong, Pesan } from "@/components/ui";
 
 interface U {
@@ -174,6 +176,9 @@ function AdminInner() {
       {/* Pengaturan jam kerja, ketelitian wajah, & geofencing */}
       {bisaKelola && <PengaturanAbsensi />}
 
+      {/* Pemeriksaan keselarasan akun & profil */}
+      {bisaKelola && <KesehatanData />}
+
       {/* Statistik */}
       <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
         <StatCard label="Total" angka={magang.length} iconBg="bg-blue-50 text-blue-600" delay="d-1"
@@ -263,7 +268,7 @@ function AdminInner() {
                       <div className="flex items-center gap-3">
                         <Avatar name={u.name} foto={u.foto} size={36} />
                         <div>
-                          <p className="font-medium text-navy-900">{u.name}</p>
+                          <Link href={`/peserta/${u.id}`} className="font-medium text-navy-900 hover:underline">{u.name}</Link>
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs text-gray-400">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
                             {u.role === "magang" && <LencanaWajah ada={u.wajahTerdaftar} />}

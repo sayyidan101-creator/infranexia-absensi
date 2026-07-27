@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { CountUp, SkeletonKartu, Skeleton, Kosong } from "@/components/ui";
 import {
   absensiHariIni, absensiSejak, sudahEnroll, riwayatAbsensi,
-  petaUserDetail, tanggalHariIni, Absensi,
+  petaUserDetail, pantauAbsensiHariIni, tanggalHariIni, Absensi,
 } from "@/lib/absensi";
 
 const HARI = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -244,6 +244,8 @@ function DashAdmin({ nama }: { nama: string }) {
   const [belumAbsen, setBelumAbsen] = useState<any[]>([]);
   const [mode, setMode] = useState<"bar" | "line">("bar");
   const [loading, setLoading] = useState(true);
+  const [magangAktif, setMagangAktif] = useState<any[]>([]);
+  const [langsung, setLangsung] = useState(false);
 
   const muat = async () => {
     setLoading(true);
@@ -258,6 +260,7 @@ function DashAdmin({ nama }: { nama: string }) {
       .map(([id, d]: any) => ({ id, ...d }))
       .filter((u) => u.role === "magang" && (u.status || "aktif") === "aktif");
     setTotal(magang.length);
+    setMagangAktif(magang);
 
     const hariIni = sejak.filter((a) => a.tanggal === tanggalHariIni());
     setToday(hariIni);
@@ -283,6 +286,22 @@ function DashAdmin({ nama }: { nama: string }) {
   };
   useEffect(() => { muat(); }, []);
 
+  // Pantau absensi hari ini secara langsung: angka berubah sendiri saat ada
+  // yang absen, tanpa perlu menekan Perbarui.
+  useEffect(() => {
+    if (magangAktif.length === 0) return;
+    const berhenti = pantauAbsensiHariIni(
+      (data) => {
+        setToday(data);
+        const sudah = new Set(data.map((a) => a.userId));
+        setBelumAbsen(magangAktif.filter((u) => !sudah.has(u.id)));
+        setLangsung(true);
+      },
+      () => setLangsung(false)
+    );
+    return () => berhenti();
+  }, [magangAktif]);
+
   const hadir = today.filter((a) => a.status === "hadir").length;
   const telat = today.filter((a) => a.status === "terlambat").length;
   const pulang = today.filter((a) => a.jamPulang).length;
@@ -296,7 +315,15 @@ function DashAdmin({ nama }: { nama: string }) {
         <div>
           <Clock />
           <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {nama.split(" ")[0]}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Pantau kehadiran magang secara real-time.</p>
+          <p className="text-sm text-gray-500 mt-0.5 inline-flex items-center gap-1.5">
+            Pantau kehadiran magang
+            {langsung && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                langsung
+              </span>
+            )}
+          </p>
         </div>
         <button onClick={muat} disabled={loading}
           className="self-start inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs font-medium text-navy-900 press hover:bg-gray-50 disabled:opacity-50">

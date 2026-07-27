@@ -5,8 +5,8 @@
 // Cloud Function `absen`, sehingga jam, status, pencocokan wajah, dan
 // validasi lokasi seluruhnya ditentukan server.
 import {
-  doc, getDoc, setDoc, collection, query, where,
-  getDocs, serverTimestamp, Timestamp,
+  doc, getDoc, setDoc, collection, query, where, orderBy, limit,
+  getDocs, onSnapshot, serverTimestamp, Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { panggilApi } from "@/lib/api";
@@ -160,12 +160,88 @@ export async function petaUserDetail(): Promise<Record<string, any>> {
   return map;
 }
 
-// Semua absensi (admin/pembimbing) diurutkan terbaru
-export async function semuaAbsensi(): Promise<Absensi[]> {
-  const snap = await getDocs(collection(db, "absensi"));
-  const arr = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-  arr.sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
-  return arr;
+/**
+ * Absensi seluruh peserta dalam rentang tanggal.
+ *
+ * Menggantikan pengambilan seluruh koleksi: dengan 20 peserta selama enam
+ * bulan itu ribuan dokumen setiap halaman dibuka — lambat dan boros kuota.
+ */
+export async function absensiRentang(dari: string, sampai: string): Promise<Absensi[]> {
+  const q = query(
+    collection(db, "absensi"),
+    where("tanggal", ">=", dari),
+    where("tanggal", "<=", sampai),
+    orderBy("tanggal", "desc"),
+    limit(2000)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+}
+
+/** Absensi satu peserta dalam rentang tanggal. */
+export async function riwayatRentang(uid: string, dari: string, sampai: string): Promise<Absensi[]> {
+  const q = query(
+    collection(db, "absensi"),
+    where("userId", "==", uid),
+    where("tanggal", ">=", dari),
+    where("tanggal", "<=", sampai),
+    orderBy("tanggal", "desc"),
+    limit(500)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+}
+
+/** Pantau absensi hari ini secara langsung, tanpa perlu muat ulang halaman. */
+export function pantauAbsensiHariIni(
+  saatBerubah: (data: Absensi[]) => void,
+  saatGagal?: (e: unknown) => void
+) {
+  const q = query(collection(db, "absensi"), where("tanggal", "==", tanggalHariIni()));
+  return onSnapshot(
+    q,
+    (snap) => saatBerubah(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }))),
+    (e) => saatGagal?.(e)
+  );
+}
+
+// ---- Rekap ----
+export interface Rekap {
+  hadir: number;
+  terlambat: number;
+  izin: number;
+  sakit: number;
+  alpha: number;
+  hariKerja: number;
+  persenKehadiran: number;
+}
+
+export function hitungRekap(data: Absensi[]): Rekap {
+  const n = (s: string) => data.filter((a) => a.status === s).length;
+  const hadir = n("hadir");
+  const terlambat = n("terlambat");
+  const izin = n("izin");
+  const sakit = n("sakit");
+  const alpha = n("alpha");
+  const hariKerja = hadir + terlambat + izin + sakit + alpha;
+  return {
+    hadir, terlambat, izin, sakit, alpha, hariKerja,
+    persenKehadiran: hariKerja ? Math.round(((hadir + terlambat) / hariKerja) * 100) : 0,
+  };
+}
+
+/** Tanggal awal & akhir sebuah bulan, format YYYY-MM-DD. */
+export function batasBulan(tahun: number, bulan: number): { dari: string; sampai: string } {
+  const dua = (n: number) => String(n).padStart(2, "0");
+  const akhir = new Date(Date.UTC(tahun, bulan, 0)).getUTCDate();
+  return { dari: `${tahun}-${dua(bulan)}-01`, sampai: `${tahun}-${dua(bulan)}-${dua(akhir)}` };
+}
+
+/** Geser tanggal sejumlah hari, hasil format YYYY-MM-DD. */
+export function geserHari(tanggal: string, hari: number): string {
+  const d = new Date(tanggal + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + hari);
+  return d.toISOString().slice(0, 10);
 }
 
 // Jumlah user per role

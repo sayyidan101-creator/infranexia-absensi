@@ -1,0 +1,88 @@
+rules_version = '2';
+
+// =====================================================================
+//  InfraNexia — Absensi Magang
+//  Prinsip: data absensi & data wajah TIDAK PERNAH disentuh browser.
+//  Semua penulisan lewat API route Next.js (Firebase Admin SDK) yang
+//  melewati rules ini, sehingga jam, status, pencocokan wajah, dan
+//  validasi lokasi selalu ditentukan server.
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Pembantu ----------
+    function login() {
+      return request.auth != null;
+    }
+    function uid() {
+      return request.auth.uid;
+    }
+    function profil() {
+      return get(/databases/$(database)/documents/users/$(uid())).data;
+    }
+    function punyaProfil() {
+      return login() && exists(/databases/$(database)/documents/users/$(uid()));
+    }
+    function isAdmin() {
+      return punyaProfil() && profil().role == 'admin';
+    }
+    function isPembina() {
+      return punyaProfil() && profil().role in ['admin', 'pembimbing'];
+    }
+    // Field yang boleh diubah sendiri oleh pemilik akun
+    function ubahanAman() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['name', 'foto', 'nim', 'kampus', 'jurusan']);
+    }
+
+    // ---------- users ----------
+    // Dibuat & dihapus HANYA lewat Cloud Functions (buatUser / hapusUser).
+    match /users/{userId} {
+      allow get: if login() && (uid() == userId || isPembina());
+      allow list: if isPembina();
+
+      // Pemilik boleh memperbarui profilnya, tapi tidak role/status/email.
+      allow update: if login() && uid() == userId && ubahanAman();
+      // Admin boleh mengubah data siapa pun (termasuk role & status).
+      allow update: if isAdmin();
+
+      allow create, delete: if false;
+    }
+
+    // ---------- faceData ----------
+    // Tertutup penuh dari browser. Pendaftaran lewat POST /api/wajah,
+    // pencocokan lewat POST /api/absen — keduanya memakai Admin SDK.
+    match /faceData/{userId} {
+      allow read, write: if false;
+    }
+
+    // ---------- absensi ----------
+    // Read-only dari client. Penulisan hanya lewat API route (Admin SDK).
+    match /absensi/{docId} {
+      allow get, list: if login() && (isPembina() || resource.data.userId == uid());
+      allow write: if false;
+    }
+
+    // ---------- izin ----------
+    // Pengajuan dibaca peserta yang bersangkutan dan seluruh pembina.
+    // Penulisan hanya lewat API route agar persetujuan sekaligus mencatat
+    // absensi — yang tidak boleh disentuh client.
+    match /izin/{izinId} {
+      allow get, list: if login() && (isPembina() || resource.data.userId == uid());
+      allow write: if false;
+    }
+
+    // ---------- config ----------
+    // Jam kerja, toleransi, ambang wajah, titik & radius kantor.
+    match /config/{docId} {
+      allow read: if login();
+      allow write: if isAdmin();
+    }
+
+    // ---------- selebihnya ditutup ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

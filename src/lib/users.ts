@@ -65,6 +65,26 @@ export async function sinkronWajah(): Promise<{ diperiksa: number; diperbarui: n
   return panggilApi<{ diperiksa: number; diperbarui: number }>("/api/users", { aksi: "sinkron" });
 }
 
+export interface Kesehatan {
+  totalAkun: number;
+  totalProfil: number;
+  tanpaProfil: { uid: string; email: string }[];
+  tanpaAkun: { uid: string; email: string; nama: string }[];
+  belumWajah: { uid: string; nama: string }[];
+  sehat: boolean;
+}
+
+/** Periksa kecocokan antara akun login dan dokumen profil. */
+export async function periksaKesehatan(): Promise<Kesehatan> {
+  return panggilApi<Kesehatan>("/api/users", { aksi: "kesehatan" });
+}
+
+/** Hapus data yatim: "tanpaProfil" (akun saja) atau "tanpaAkun" (profil saja). */
+export async function bersihkanData(jenis: "tanpaProfil" | "tanpaAkun"): Promise<number> {
+  const r = await panggilApi<{ dihapus: number }>("/api/users", { aksi: "bersihkan", jenis });
+  return r.dihapus;
+}
+
 /** Pesan error dari API sudah ramah dibaca; fungsi ini hanya berjaga-jaga. */
 export function pesanError(e: any): string {
   return e?.message || "Terjadi kesalahan.";

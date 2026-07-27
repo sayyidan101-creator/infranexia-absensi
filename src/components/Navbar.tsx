@@ -24,6 +24,12 @@ const I = {
       <circle cx="12" cy="12" r="9" /><path d="M9 10h.01M15 10h.01M8.5 14.5a4.5 4.5 0 0 0 7 0" />
     </svg>
   ),
+  izin: (p: IconProps) => (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
+      <path d="M9 15h6M9 11h3" />
+    </svg>
+  ),
   riwayat: (p: IconProps) => (
     <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" />
@@ -79,6 +85,7 @@ export default function Navbar() {
     { href: "/dashboard", label: "Dashboard", icon: I.dashboard, roles: ["admin", "pembimbing", "magang"] },
     { href: "/absensi", label: "Absensi", icon: I.absensi, roles: ["magang"] },
     { href: "/enroll", label: "Wajah", icon: I.enroll, roles: ["magang"] },
+    { href: "/izin", label: "Izin", icon: I.izin, roles: ["admin", "pembimbing", "magang"] },
     { href: "/riwayat", label: "Riwayat", icon: I.riwayat, roles: ["admin", "pembimbing", "magang"] },
     { href: "/admin", label: "Kelola", icon: I.kelola, roles: ["admin", "pembimbing"] },
   ].filter((m) => m.roles.includes(profil.role));

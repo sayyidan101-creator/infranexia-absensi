@@ -22,6 +22,8 @@ export async function POST(req: Request) {
     if (body?.aksi === "ubah") return await ubah(body);
     if (body?.aksi === "hapus") return await hapus(body, pelaku);
     if (body?.aksi === "sinkron") return await sinkron();
+    if (body?.aksi === "kesehatan") return await kesehatan();
+    if (body?.aksi === "bersihkan") return await bersihkan(body, pelaku);
 
     throw new KesalahanAbsen("Aksi tidak dikenal.");
   } catch (e: any) {
@@ -201,6 +203,88 @@ async function hapus(d: any, pelaku: string) {
   await batch.commit();
 
   return NextResponse.json({ ok: true, absensiDihapus: absen.size });
+}
+
+// ---------- Pemeriksaan kesehatan data ----------
+/**
+ * Membandingkan akun Firebase Auth dengan dokumen profil di Firestore.
+ * Ketidakcocokan antar keduanya adalah sumber kebingungan paling sering:
+ * akun yang bisa login tapi tidak punya profil akan tersangkut di layar
+ * pembuka, sedangkan profil tanpa akun muncul sebagai peserta hantu.
+ */
+async function kesehatan() {
+  const [authList, profilSnap] = await Promise.all([
+    adminAuth().listUsers(1000),
+    adminDb().collection("users").get(),
+  ]);
+
+  const petaProfil = new Map(profilSnap.docs.map((d) => [d.id, d.data() as any]));
+  const uidAuth = new Set(authList.users.map((u) => u.uid));
+
+  const tanpaProfil = authList.users
+    .filter((u) => !petaProfil.has(u.uid))
+    .map((u) => ({ uid: u.uid, email: u.email || "(tanpa email)" }));
+
+  const tanpaAkun = profilSnap.docs
+    .filter((d) => !uidAuth.has(d.id))
+    .map((d) => ({ uid: d.id, email: (d.data() as any).email || "(tanpa email)", nama: (d.data() as any).name || "" }));
+
+  const belumWajah = profilSnap.docs
+    .filter((d) => {
+      const p = d.data() as any;
+      return p.role === "magang" && (p.status || "aktif") === "aktif" && p.wajahTerdaftar !== true;
+    })
+    .map((d) => ({ uid: d.id, nama: (d.data() as any).name || d.id }));
+
+  return NextResponse.json({
+    totalAkun: authList.users.length,
+    totalProfil: profilSnap.size,
+    tanpaProfil,
+    tanpaAkun,
+    belumWajah,
+    sehat: tanpaProfil.length === 0 && tanpaAkun.length === 0,
+  });
+}
+
+// ---------- Bersihkan data yatim ----------
+async function bersihkan(d: any, pelaku: string) {
+  const jenis = String(d?.jenis || "");
+  let dihapus = 0;
+
+  if (jenis === "tanpaProfil") {
+    // Akun login tanpa profil: hapus akunnya, tidak ada data yang hilang
+    const [authList, profilSnap] = await Promise.all([
+      adminAuth().listUsers(1000),
+      adminDb().collection("users").get(),
+    ]);
+    const punyaProfil = new Set(profilSnap.docs.map((x) => x.id));
+    for (const u of authList.users) {
+      if (u.uid === pelaku || punyaProfil.has(u.uid)) continue;
+      await adminAuth().deleteUser(u.uid).catch(() => undefined);
+      dihapus++;
+    }
+  } else if (jenis === "tanpaAkun") {
+    // Profil tanpa akun login: hapus dokumennya beserta sisa absensinya
+    const [authList, profilSnap] = await Promise.all([
+      adminAuth().listUsers(1000),
+      adminDb().collection("users").get(),
+    ]);
+    const uidAuth = new Set(authList.users.map((u) => u.uid));
+    for (const dok of profilSnap.docs) {
+      if (uidAuth.has(dok.id)) continue;
+      const absen = await adminDb().collection("absensi").where("userId", "==", dok.id).get();
+      const batch = adminDb().batch();
+      absen.docs.forEach((a) => batch.delete(a.ref));
+      batch.delete(dok.ref);
+      await batch.commit();
+      await adminDb().doc(`faceData/${dok.id}`).delete().catch(() => undefined);
+      dihapus++;
+    }
+  } else {
+    throw new KesalahanAbsen("Jenis pembersihan tidak dikenal.");
+  }
+
+  return NextResponse.json({ ok: true, dihapus });
 }
 
 // ---------- Sinkronisasi penanda wajah ----------

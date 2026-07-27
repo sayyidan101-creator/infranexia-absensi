@@ -1,12 +1,14 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import Protected from "@/components/Protected";
 import { useAuth } from "@/context/AuthContext";
 import Avatar from "@/components/Avatar";
-import { CountUp, Skeleton, Kosong } from "@/components/ui";
+import { CountUp, Skeleton, Kosong, Pesan } from "@/components/ui";
+import { unduhXlsx, cetakHtml } from "@/lib/ekspor";
 import {
-  semuaAbsensi, riwayatAbsensi, petaUserDetail, jumlahMagang,
-  tanggalHariIni, Absensi,
+  absensiRentang, riwayatRentang, petaUserDetail, hitungRekap,
+  tanggalHariIni, geserHari, Absensi,
 } from "@/lib/absensi";
 
 interface Baris {
@@ -32,34 +34,39 @@ const tglPendek = (s: string) => {
   return isNaN(d.getTime()) ? s : d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
 };
 
+const HARI_AWAL = 30;
+
 function RiwayatInner() {
   const { profil } = useAuth();
+  const isAdmin = profil?.role !== "magang";
+
   const [rows, setRows] = useState<Baris[]>([]);
   const [loading, setLoading] = useState(true);
-  const [totalMagang, setTotalMagang] = useState(0);
+  const [memuatLagi, setMemuatLagi] = useState(false);
+  const [galat, setGalat] = useState("");
 
-  // filter
+  // Rentang yang benar-benar ditanyakan ke Firestore
+  const [dari, setDari] = useState(() => geserHari(tanggalHariIni(), -HARI_AWAL));
+  const [sampai, setSampai] = useState(() => tanggalHariIni());
+
+  // Penyaring sisi tampilan
   const [cari, setCari] = useState("");
   const [status, setStatus] = useState("semua");
-  const [dari, setDari] = useState("");
-  const [sampai, setSampai] = useState("");
   const [page, setPage] = useState(1);
   const [filterBuka, setFilterBuka] = useState(false);
   const PER = 10;
 
-  useEffect(() => {
+  const ambil = async (d: string, s: string) => {
     if (!profil) return;
-    (async () => {
-      setLoading(true);
+    setGalat("");
+    try {
       let data: Absensi[];
       let detail: Record<string, any> = {};
       if (profil.role === "magang") {
-        data = await riwayatAbsensi(profil.uid);
+        data = await riwayatRentang(profil.uid, d, s);
         detail[profil.uid] = { name: profil.name, jurusan: profil.jurusan, nim: profil.nim, foto: profil.foto };
       } else {
-        data = await semuaAbsensi();
-        detail = await petaUserDetail();
-        setTotalMagang(await jumlahMagang());
+        [data, detail] = await Promise.all([absensiRentang(d, s), petaUserDetail()]);
       }
       setRows(data.map((a) => {
         const u = detail[a.userId] || {};
@@ -69,59 +76,94 @@ function RiwayatInner() {
           tanggal: a.tanggal, masuk: jam(a.jamMasuk), pulang: jam(a.jamPulang), status: a.status, foto: u.foto,
         };
       }));
-      setLoading(false);
-    })();
-  }, [profil]);
+    } catch (e: any) {
+      // Query rentang memerlukan indeks; kalau belum dibuat Firestore memberi tahu lewat pesan ini
+      setGalat(
+        /index/i.test(String(e?.message))
+          ? "Firestore memerlukan indeks untuk penyaringan tanggal. Jalankan: firebase deploy --only firestore:indexes"
+          : e?.message || "Gagal memuat riwayat."
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (!profil) return;
+    setLoading(true);
+    ambil(dari, sampai).finally(() => setLoading(false));
+  }, [profil?.uid]);
+
+  const terapkanRentang = async (d: string, s: string) => {
+    setDari(d); setSampai(s); setPage(1);
+    setLoading(true);
+    await ambil(d, s);
+    setLoading(false);
+  };
+
+  const muatLebihLama = async () => {
+    const baru = geserHari(dari, -HARI_AWAL);
+    setMemuatLagi(true);
+    setDari(baru);
+    await ambil(baru, sampai);
+    setMemuatLagi(false);
+  };
 
   const filtered = useMemo(() => rows.filter((r) => {
     if (cari && !(`${r.nama} ${r.divisi}`.toLowerCase().includes(cari.toLowerCase()))) return false;
     if (status !== "semua" && r.status !== status) return false;
-    if (dari && r.tanggal < dari) return false;
-    if (sampai && r.tanggal > sampai) return false;
     return true;
-  }), [rows, cari, status, dari, sampai]);
+  }), [rows, cari, status]);
 
   const totalHal = Math.max(1, Math.ceil(filtered.length / PER));
   const hal = Math.min(page, totalHal);
   const view = filtered.slice((hal - 1) * PER, hal * PER);
-  const filterAktif = (status !== "semua" ? 1 : 0) + (dari ? 1 : 0) + (sampai ? 1 : 0);
+  const filterAktif = status !== "semua" ? 1 : 0;
 
-  // statistik bawah
   const today = tanggalHariIni();
+  const rekap = useMemo(
+    () => hitungRekap(filtered.map((r) => ({ status: r.status } as any))),
+    [filtered]
+  );
   const hadirIni = rows.filter((r) => r.tanggal === today && (r.status === "hadir" || r.status === "terlambat")).length;
   const telatIni = rows.filter((r) => r.tanggal === today && r.status === "terlambat").length;
-  const isAdmin = profil?.role !== "magang";
-  const alpaIni = isAdmin ? Math.max(0, totalMagang - hadirIni) : 0;
-  const attendance = isAdmin ? (totalMagang ? Math.round((hadirIni / totalMagang) * 100) : 0)
-    : (rows.length ? Math.round((rows.filter((r) => r.status === "hadir").length / rows.length) * 100) : 0);
+  const alpaIni = rows.filter((r) => r.tanggal === today && r.status === "alpha").length;
 
-  const reset = () => { setCari(""); setStatus("semua"); setDari(""); setSampai(""); setPage(1); };
+  const reset = () => { setCari(""); setStatus("semua"); setPage(1); };
 
-  const eksporExcel = () => {
-    const head = "Tanggal,Nama,Divisi,ID,Masuk,Pulang,Status\n";
-    const body = filtered.map((r) => `${r.tanggal},"${r.nama}","${r.divisi}",${r.kode},${r.masuk},${r.pulang},${r.status}`).join("\n");
-    const blob = new Blob([head + body], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `riwayat-kehadiran-${today}.csv`; a.click();
-    URL.revokeObjectURL(url);
+  const eksporExcel = async () => {
+    await unduhXlsx(
+      `riwayat-kehadiran-${dari}_sd_${sampai}`,
+      "Kehadiran",
+      [
+        { kunci: "tanggal", judul: "Tanggal", lebar: 12 },
+        { kunci: "nama", judul: "Nama", lebar: 24 },
+        { kunci: "divisi", judul: "Divisi", lebar: 20 },
+        { kunci: "kode", judul: "NIM / ID", lebar: 16 },
+        { kunci: "masuk", judul: "Masuk", lebar: 10 },
+        { kunci: "pulang", judul: "Pulang", lebar: 10 },
+        { kunci: "label", judul: "Status", lebar: 14 },
+      ],
+      filtered.map((r) => ({ ...r, label: badge(r.status).t }))
+    );
   };
 
   const eksporPDF = () => {
     const baris = filtered.map((r) => `<tr><td>${r.tanggal}</td><td>${r.nama}</td><td>${r.divisi}</td><td>${r.masuk}</td><td>${r.pulang}</td><td>${badge(r.status).t}</td></tr>`).join("");
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(`<html><head><title>Riwayat Kehadiran</title>
-      <style>body{font-family:sans-serif;padding:24px}h1{color:#0a1f44}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ddd;padding:6px 10px;text-align:left}th{background:#0a1f44;color:#fff}</style>
-      </head><body><h1>Riwayat Kehadiran — InfraNexia</h1><p>Dicetak: ${new Date().toLocaleString("id-ID")}</p>
-      <table><thead><tr><th>Tanggal</th><th>Nama</th><th>Divisi</th><th>Masuk</th><th>Pulang</th><th>Status</th></tr></thead><tbody>${baris}</tbody></table>
-      </body></html>`);
-    w.document.close(); w.focus(); w.print();
+    cetakHtml("Riwayat Kehadiran", `<html><head><meta charset="utf-8"><title>Riwayat Kehadiran</title>
+      <style>body{font-family:sans-serif;padding:24px;color:#0f172a}h1{color:#0a1f44;margin:0 0 4px}
+      p.sub{color:#64748b;font-size:13px;margin:0 0 18px}
+      table{width:100%;border-collapse:collapse;font-size:12px}
+      th,td{border:1px solid #e2e8f0;padding:6px 10px;text-align:left}
+      th{background:#0a1f44;color:#fff}
+      tr:nth-child(even) td{background:#f8fafc}</style>
+      </head><body><h1>Riwayat Kehadiran — InfraNexia</h1>
+      <p class="sub">Periode ${dari} s.d. ${sampai} · ${filtered.length} entri · dicetak ${new Date().toLocaleString("id-ID")}</p>
+      <table><thead><tr><th>Tanggal</th><th>Nama</th><th>Divisi</th><th>Masuk</th><th>Pulang</th><th>Status</th></tr></thead>
+      <tbody>${baris}</tbody></table></body></html>`);
   };
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header gelap */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-navy-900 to-navy-700 rounded-2xl p-5 sm:p-6 text-white flex flex-col md:flex-row md:items-center md:justify-between gap-4 anim-fade-up">
         <div className="flex items-start gap-3">
           <div className="w-11 h-11 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0">
@@ -129,7 +171,9 @@ function RiwayatInner() {
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-bold">Riwayat Kehadiran</h1>
-            <p className="text-xs sm:text-sm text-slate-300 mt-0.5 max-w-lg">Pantau dan audit data presensi secara real-time.</p>
+            <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
+              Periode {dari} s.d. {sampai}
+            </p>
           </div>
         </div>
         <div className="grid grid-cols-2 md:flex gap-2">
@@ -143,6 +187,8 @@ function RiwayatInner() {
           </button>
         </div>
       </div>
+
+      {galat && <Pesan tipe="err">{galat}</Pesan>}
 
       {/* Pencarian + filter */}
       <div className="card p-3 sm:p-4 anim-fade-up d-1">
@@ -166,17 +212,19 @@ function RiwayatInner() {
 
         {filterBuka && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-3 anim-fade-up">
-            <label className="col-span-1">
+            <label>
               <span className="block text-[11px] text-gray-500 mb-1">Dari</span>
-              <input type="date" value={dari} onChange={(e) => { setDari(e.target.value); setPage(1); }}
+              <input type="date" value={dari} max={sampai}
+                onChange={(e) => terapkanRentang(e.target.value, sampai)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-navy-700" />
             </label>
-            <label className="col-span-1">
+            <label>
               <span className="block text-[11px] text-gray-500 mb-1">Sampai</span>
-              <input type="date" value={sampai} onChange={(e) => { setSampai(e.target.value); setPage(1); }}
+              <input type="date" value={sampai} min={dari}
+                onChange={(e) => terapkanRentang(dari, e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-navy-700" />
             </label>
-            <label className="col-span-1">
+            <label>
               <span className="block text-[11px] text-gray-500 mb-1">Status</span>
               <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-navy-700">
@@ -185,6 +233,7 @@ function RiwayatInner() {
                 <option value="terlambat">Terlambat</option>
                 <option value="izin">Izin</option>
                 <option value="sakit">Sakit</option>
+                <option value="alpha">Alpa</option>
               </select>
             </label>
             <button onClick={reset} className="self-end px-4 py-2.5 rounded-xl bg-gray-100 text-navy-900 text-sm font-medium press">Reset</button>
@@ -196,12 +245,12 @@ function RiwayatInner() {
       <div className="md:hidden space-y-2.5">
         {loading && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[74px] w-full rounded-2xl" />)}
         {!loading && view.length === 0 && (
-          <div className="card"><Kosong judul="Tidak ada data" pesan="Coba ubah kata kunci atau filter tanggal." /></div>
+          <div className="card"><Kosong judul="Tidak ada data" pesan="Coba ubah kata kunci, status, atau rentang tanggal." /></div>
         )}
         {!loading && view.map((r, i) => {
           const b = badge(r.status);
-          return (
-            <div key={r.id} className="card p-3.5 flex items-center gap-3 anim-fade-up press" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
+          const isi = (
+            <div className="card p-3.5 flex items-center gap-3 anim-fade-up press" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
               <Avatar name={r.nama} foto={r.foto} size={40} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -222,6 +271,9 @@ function RiwayatInner() {
               <span className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${b.c}`}>{b.t}</span>
             </div>
           );
+          return isAdmin
+            ? <Link key={r.id} href={`/peserta/${r.userId}`}>{isi}</Link>
+            : <div key={r.id}>{isi}</div>;
         })}
       </div>
 
@@ -243,7 +295,7 @@ function RiwayatInner() {
               {loading && [0, 1, 2, 3, 4].map((i) => (
                 <tr key={i} className="border-b border-gray-50"><td colSpan={6} className="px-5 py-3"><Skeleton className="h-9 w-full" /></td></tr>
               ))}
-              {!loading && view.length === 0 && <tr><td colSpan={6}><Kosong judul="Tidak ada data" pesan="Coba ubah kata kunci atau filter tanggal." /></td></tr>}
+              {!loading && view.length === 0 && <tr><td colSpan={6}><Kosong judul="Tidak ada data" pesan="Coba ubah kata kunci, status, atau rentang tanggal." /></td></tr>}
               {!loading && view.map((r, i) => {
                 const b = badge(r.status);
                 return (
@@ -252,7 +304,9 @@ function RiwayatInner() {
                       <div className="flex items-center gap-3">
                         <Avatar name={r.nama} foto={r.foto} size={36} />
                         <div>
-                          <p className="font-medium text-navy-900">{r.nama}</p>
+                          {isAdmin
+                            ? <Link href={`/peserta/${r.userId}`} className="font-medium text-navy-900 hover:underline">{r.nama}</Link>
+                            : <p className="font-medium text-navy-900">{r.nama}</p>}
                           <p className="text-xs text-gray-400">ID: {r.kode}</p>
                         </div>
                       </div>
@@ -270,48 +324,47 @@ function RiwayatInner() {
         </div>
       </div>
 
-      {/* Pagination */}
-      <div className="card flex flex-col xs:flex-row items-center justify-between gap-3 px-4 py-3.5 anim-fade-up d-3">
-        <p className="text-xs text-gray-500">
-          {filtered.length === 0 ? 0 : (hal - 1) * PER + 1}–{Math.min(hal * PER, filtered.length)} dari {filtered.length} entri
-        </p>
-        <div className="flex items-center gap-1">
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={hal === 1}
-            className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center disabled:opacity-40 press hover:bg-gray-50">‹</button>
-          {Array.from({ length: totalHal }).slice(0, 5).map((_, i) => {
-            const n = i + 1;
-            return (
-              <button key={n} onClick={() => setPage(n)}
-                className={`w-9 h-9 rounded-xl text-sm press transition ${n === hal ? "bg-navy-900 text-white" : "border border-gray-200 hover:bg-gray-50"}`}>{n}</button>
-            );
-          })}
-          {totalHal > 5 && <span className="px-1 text-gray-400">… {totalHal}</span>}
-          <button onClick={() => setPage((p) => Math.min(totalHal, p + 1))} disabled={hal === totalHal}
-            className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center disabled:opacity-40 press hover:bg-gray-50">›</button>
+      {/* Pagination + muat lebih lama */}
+      <div className="card flex flex-col gap-3 px-4 py-3.5 anim-fade-up d-3">
+        <div className="flex flex-col xs:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-gray-500">
+            {filtered.length === 0 ? 0 : (hal - 1) * PER + 1}–{Math.min(hal * PER, filtered.length)} dari {filtered.length} entri
+          </p>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={hal === 1}
+              className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center disabled:opacity-40 press hover:bg-gray-50">‹</button>
+            {Array.from({ length: totalHal }).slice(0, 5).map((_, i) => {
+              const n = i + 1;
+              return (
+                <button key={n} onClick={() => setPage(n)}
+                  className={`w-9 h-9 rounded-xl text-sm press transition ${n === hal ? "bg-navy-900 text-white" : "border border-gray-200 hover:bg-gray-50"}`}>{n}</button>
+              );
+            })}
+            {totalHal > 5 && <span className="px-1 text-gray-400">… {totalHal}</span>}
+            <button onClick={() => setPage((p) => Math.min(totalHal, p + 1))} disabled={hal === totalHal}
+              className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center disabled:opacity-40 press hover:bg-gray-50">›</button>
+          </div>
         </div>
+        <button onClick={muatLebihLama} disabled={memuatLagi || loading}
+          className="w-full py-3 rounded-xl border border-gray-200 text-sm font-medium text-navy-900 press hover:bg-gray-50 disabled:opacity-50">
+          {memuatLagi ? "Memuat..." : `Muat ${HARI_AWAL} hari sebelumnya`}
+        </button>
       </div>
 
-      {/* Statistik bawah */}
+      {/* Statistik */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MiniStat warna="bg-emerald-50 text-emerald-600" angka={attendance} suffix="%" delay="d-1"
-          label={isAdmin ? "Kehadiran Hari Ini" : "Rata-rata Tepat Waktu"}
+        <MiniStat warna="bg-emerald-50 text-emerald-600" angka={rekap.persenKehadiran} suffix="%" delay="d-1"
+          label="Kehadiran Periode Ini"
           icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="m9 11 3 3L22 4" /></svg>} />
-        <MiniStat warna="bg-amber-50 text-amber-600" angka={telatIni} delay="d-2"
-          label="Terlambat Hari Ini"
+        <MiniStat warna="bg-amber-50 text-amber-600" angka={isAdmin ? telatIni : rekap.terlambat} delay="d-2"
+          label={isAdmin ? "Terlambat Hari Ini" : "Total Terlambat"}
           icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><path d="M12 9v4M12 17h.01" /></svg>} />
-        <MiniStat warna="bg-red-50 text-telkomRed" delay="d-3"
-          angka={isAdmin ? alpaIni : rows.filter((r) => r.status === "terlambat").length}
-          label={isAdmin ? "Alpa Hari Ini" : "Total Terlambat"}
+        <MiniStat warna="bg-blue-50 text-blue-600" angka={rekap.izin + rekap.sakit} delay="d-3"
+          label="Izin & Sakit"
+          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>} />
+        <MiniStat warna="bg-red-50 text-telkomRed" angka={isAdmin ? alpaIni : rekap.alpha} delay="d-4"
+          label={isAdmin ? "Alpa Hari Ini" : "Total Alpa"}
           icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6M9 9l6 6" /></svg>} />
-        <div className="bg-navy-900 rounded-2xl p-4 sm:p-5 flex items-center gap-3 text-white anim-fade-up d-4">
-          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.22-8.56" /><path d="M21 3v6h-6" /></svg>
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-[11px] text-slate-300 uppercase tracking-wide">Sync Terakhir</p>
-            <p className="text-sm font-semibold">Baru saja</p>
-          </div>
-        </div>
       </div>
     </div>
   );
