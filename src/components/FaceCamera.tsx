@@ -42,7 +42,7 @@ export default function FaceCamera({ mode, onCapture, busy }: Props) {
     setStatus("Menyalakan kamera...");
     let stream: MediaStream | null = null;
     try {
-      stream = await coba({ video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 360 } } });
+      stream = await coba({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } } });
     } catch (e1: any) {
       // fallback: pengaturan paling sederhana
       try {
@@ -86,6 +86,7 @@ export default function FaceCamera({ mode, onCapture, busy }: Props) {
             else if (earState.current.tertutup && e > 0.28) {
               earState.current.tertutup = false;
               setKedip(true);
+              if (navigator.vibrate) navigator.vibrate(18);
             }
           }
         } else setWajahAda(false);
@@ -101,24 +102,72 @@ export default function FaceCamera({ mode, onCapture, busy }: Props) {
     setStatus("Memproses wajah...");
     const desc = await getFaceDescriptor(videoRef.current);
     if (!desc) { setStatus("Wajah tidak terdeteksi, coba lagi"); return; }
+    if (navigator.vibrate) navigator.vibrate([12, 40, 12]);
     onCapture(Array.from(desc));
     setStatus("Berhasil diambil");
     setKedip(false);
   }, [onCapture]);
 
+  const siap = ready && wajahAda && (mode === "enroll" || kedip);
   const statusTampil =
     errorKamera ? "" :
-    mode === "verify" ? (kedip ? "Liveness OK — silakan absen" : "Silakan berkedip untuk verifikasi") : status;
+    !ready ? status :
+    !wajahAda ? "Posisikan wajah di dalam bingkai" :
+    mode === "verify" ? (kedip ? "Liveness terverifikasi" : "Berkedip sekali untuk verifikasi") :
+    "Wajah terdeteksi — siap diambil";
 
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="relative w-[360px] h-[270px] rounded-xl overflow-hidden bg-black ring-4 ring-navy-800">
+      {/* Pratinjau kamera: penuh di HP, proporsi 4:3 */}
+      <div className={`relative w-full max-w-sm aspect-[4/3] rounded-2xl overflow-hidden bg-navy-900 ring-4 transition-colors duration-300 ${
+        errorKamera ? "ring-red-300" : siap ? "ring-emerald-400" : wajahAda ? "ring-amber-300" : "ring-navy-800"
+      }`}>
         <video ref={videoRef} className="w-full h-full object-cover scale-x-[-1]" muted playsInline />
-        {!errorKamera && (
-          <div className={`absolute inset-6 rounded-lg border-2 ${wajahAda ? "border-green-400" : "border-white/40"}`} />
+
+        {!errorKamera && ready && (
+          <>
+            {/* Bingkai sudut */}
+            <div className="pointer-events-none absolute inset-[10%]">
+              {[
+                "top-0 left-0 border-t-[3px] border-l-[3px] rounded-tl-xl",
+                "top-0 right-0 border-t-[3px] border-r-[3px] rounded-tr-xl",
+                "bottom-0 left-0 border-b-[3px] border-l-[3px] rounded-bl-xl",
+                "bottom-0 right-0 border-b-[3px] border-r-[3px] rounded-br-xl",
+              ].map((c, i) => (
+                <span key={i} className={`absolute w-9 h-9 transition-colors duration-300 ${c} ${
+                  siap ? "border-emerald-400" : wajahAda ? "border-amber-300" : "border-white/50"
+                }`} />
+              ))}
+            </div>
+            {/* Garis pemindai */}
+            {!siap && <span className="scanline" />}
+            {/* Lencana status */}
+            <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/45 backdrop-blur-sm text-[11px] font-medium text-white">
+              <span className={`w-1.5 h-1.5 rounded-full ${siap ? "bg-emerald-400" : wajahAda ? "bg-amber-300" : "bg-white/60"} ${!siap ? "animate-pulse" : ""}`} />
+              {siap ? "Siap" : wajahAda ? "Wajah terdeteksi" : "Mencari wajah"}
+            </div>
+            {mode === "verify" && (
+              <div className={`absolute top-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
+                kedip ? "bg-emerald-500 text-white" : "bg-black/45 backdrop-blur-sm text-white/90"
+              }`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  {kedip ? <path d="m5 13 4 4L19 7" /> : <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>}
+                </svg>
+                {kedip ? "Liveness OK" : "Kedip"}
+              </div>
+            )}
+          </>
         )}
+
+        {!ready && !errorKamera && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-navy-900/80 text-white">
+            <span className="w-8 h-8 rounded-full border-2 border-white/25 border-t-white animate-spin" />
+            <p className="text-xs text-slate-300">{status}</p>
+          </div>
+        )}
+
         {errorKamera && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 bg-navy-900/90">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 bg-navy-900/92 anim-fade-in">
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m3-3h6l2 3h4a2 2 0 0 1 2 2v9.34" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
             <p className="text-sm text-red-200 mt-3">{errorKamera}</p>
           </div>
@@ -126,18 +175,22 @@ export default function FaceCamera({ mode, onCapture, busy }: Props) {
       </div>
 
       {errorKamera ? (
-        <button onClick={mulaiKamera} className="px-6 py-2.5 rounded-lg bg-navy-800 text-white font-medium hover:bg-navy-700">
+        <button onClick={mulaiKamera} className="w-full max-w-sm py-3.5 rounded-2xl bg-navy-800 text-white font-semibold press hover:bg-navy-700">
           Coba Lagi
         </button>
       ) : (
         <>
-          <p className="text-sm text-gray-600 min-h-[20px]">{statusTampil}</p>
+          <p className="text-sm text-gray-600 min-h-[20px] text-center transition-all">{statusTampil}</p>
           <button
             onClick={ambil}
-            disabled={!ready || busy || !wajahAda || (mode === "verify" && !kedip)}
-            className="px-6 py-2.5 rounded-lg bg-telkomRed text-white font-medium disabled:opacity-40 hover:brightness-110 transition"
+            disabled={!siap || busy}
+            className={`w-full max-w-sm flex items-center justify-center gap-2 py-4 rounded-2xl text-white font-semibold press transition-all disabled:opacity-40 disabled:shadow-none ${
+              siap ? "bg-gradient-to-r from-telkomRed to-red-700 shadow-lift" : "bg-gray-400"
+            }`}
           >
-            {busy ? "Memproses..." : mode === "enroll" ? "Ambil Sampel" : "Absen Sekarang"}
+            {busy ? (
+              <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Memproses...</>
+            ) : mode === "enroll" ? "Ambil Sampel" : "Absen Sekarang"}
           </button>
         </>
       )}
@@ -148,12 +201,12 @@ export default function FaceCamera({ mode, onCapture, busy }: Props) {
 function pesanError(e: any): string {
   const n = e?.name || "";
   if (n === "NotReadableError" || n === "TrackStartError")
-    return "Kamera sedang dipakai aplikasi/tab lain (Zoom, Meet, WhatsApp, dll). Tutup aplikasi itu lalu klik Coba Lagi.";
+    return "Kamera sedang dipakai aplikasi/tab lain (Zoom, Meet, WhatsApp, dll). Tutup aplikasi itu lalu ketuk Coba Lagi.";
   if (n === "NotAllowedError" || n === "SecurityError")
-    return "Akses kamera ditolak. Izinkan kamera di ikon gembok pada address bar, lalu Coba Lagi.";
+    return "Akses kamera ditolak. Izinkan kamera di pengaturan situs, lalu ketuk Coba Lagi.";
   if (n === "NotFoundError" || n === "DevicesNotFoundError")
-    return "Kamera tidak ditemukan. Pastikan webcam terpasang dan aktif.";
+    return "Kamera tidak ditemukan. Pastikan kamera perangkat aktif.";
   if (n === "OverconstrainedError")
-    return "Pengaturan kamera tidak didukung perangkat. Klik Coba Lagi.";
+    return "Pengaturan kamera tidak didukung perangkat. Ketuk Coba Lagi.";
   return "Gagal mengakses kamera: " + (e?.message || n || "tidak diketahui");
 }
