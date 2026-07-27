@@ -51,10 +51,17 @@ export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const refSheet = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    const h = (e: Event) => {
+      const target = e.target as Node;
+      // Sheet profil pada mobile dirender di luar `ref`, sehingga tanpa
+      // pengecualian ini sentuhan pada tombol di dalamnya akan menutup sheet
+      // pada mousedown — dan onClick tombolnya tidak pernah sempat berjalan.
+      if (ref.current?.contains(target)) return;
+      if (refSheet.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
@@ -152,7 +159,7 @@ export default function Navbar() {
       {open && (
         <div className="md:hidden fixed inset-0 z-50 flex items-end anim-fade-in" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/40" />
-          <div className="relative w-full bg-white rounded-t-3xl pb-safe anim-slide-up" onClick={(e) => e.stopPropagation()}>
+          <div ref={refSheet} className="relative w-full bg-white rounded-t-3xl pb-safe anim-slide-up" onClick={(e) => e.stopPropagation()}>
             <div className="w-10 h-1.5 rounded-full bg-gray-200 mx-auto mt-3 mb-1" />
             <KartuProfil profil={profil} />
             <div className="p-2">
