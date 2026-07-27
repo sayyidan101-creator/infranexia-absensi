@@ -1,9 +1,15 @@
-// Helper Firestore untuk data wajah & absensi
+// Helper Firestore untuk data wajah, konfigurasi, & absensi.
+//
+// Catatan keamanan: sejak versi ini, dokumen `absensi` TIDAK BOLEH ditulis
+// dari browser (dikunci Firestore Rules). Absen masuk/pulang dilakukan lewat
+// Cloud Function `absen`, sehingga jam, status, pencocokan wajah, dan
+// validasi lokasi seluruhnya ditentukan server.
 import {
   doc, getDoc, setDoc, collection, query, where,
   getDocs, serverTimestamp, Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { panggilApi } from "@/lib/api";
 
 // ---- Tanggal lokal format YYYY-MM-DD ----
 export function tanggalHariIni(): string {
@@ -12,44 +18,69 @@ export function tanggalHariIni(): string {
   return new Date(d.getTime() - off).toISOString().slice(0, 10);
 }
 
-// ---- Face data ----
-export async function simpanWajah(uid: string, descriptors: number[][]) {
-  await setDoc(doc(db, "faceData", uid), {
-    descriptors,
-    updatedAt: serverTimestamp(),
-  });
+// ================= Konfigurasi =================
+
+export interface Konfigurasi {
+  jamMasuk: string;
+  jamPulang: string;
+  toleransiMenit: number;
+  faceThreshold: number;
+  geofenceAktif: boolean;
+  kantorLat: number | null;
+  kantorLng: number | null;
+  radiusMeter: number;
+  minJedaMenit: number;
+  zonaWaktu: string;
 }
 
-export async function ambilWajah(uid: string): Promise<number[][] | null> {
-  const snap = await getDoc(doc(db, "faceData", uid));
-  return snap.exists() ? (snap.data().descriptors as number[][]) : null;
+export const KONFIG_DEFAULT: Konfigurasi = {
+  jamMasuk: process.env.NEXT_PUBLIC_JAM_MASUK || "08:00",
+  jamPulang: process.env.NEXT_PUBLIC_JAM_PULANG || "16:00",
+  toleransiMenit: parseInt(process.env.NEXT_PUBLIC_TOLERANSI_MENIT || "15", 10),
+  faceThreshold: parseFloat(process.env.NEXT_PUBLIC_FACE_THRESHOLD || "0.5"),
+  geofenceAktif: false,
+  kantorLat: null,
+  kantorLng: null,
+  radiusMeter: 150,
+  minJedaMenit: 0,
+  zonaWaktu: "Asia/Jakarta",
+};
+
+/** Konfigurasi tersimpan di Firestore agar admin bisa mengubah tanpa deploy ulang. */
+export async function ambilKonfigurasi(): Promise<Konfigurasi> {
+  try {
+    const snap = await getDoc(doc(db, "config", "absensi"));
+    return snap.exists()
+      ? { ...KONFIG_DEFAULT, ...(snap.data() as Partial<Konfigurasi>) }
+      : KONFIG_DEFAULT;
+  } catch {
+    return KONFIG_DEFAULT;
+  }
 }
 
+export async function simpanKonfigurasi(nilai: Partial<Konfigurasi>) {
+  await setDoc(doc(db, "config", "absensi"), { ...nilai, diperbaruiPada: serverTimestamp() }, { merge: true });
+}
+
+// ================= Data wajah =================
+
+/** Pendaftaran wajah dikirim ke server; koleksi faceData tertutup dari browser. */
+export async function simpanWajah(descriptors: number[][]) {
+  await panggilApi<{ ok: boolean; jumlah: number }>("/api/wajah", { descriptors });
+}
+
+/**
+ * Descriptor tidak bisa dibaca dari browser (Rules menutupnya), jadi status
+ * pendaftaran wajah dibaca dari penanda `wajahTerdaftar` pada dokumen user
+ * yang diisi otomatis oleh Cloud Function `onFaceDataWritten`.
+ */
 export async function sudahEnroll(uid: string): Promise<boolean> {
-  const snap = await getDoc(doc(db, "faceData", uid));
-  return snap.exists() && (snap.data().descriptors?.length ?? 0) > 0;
+  const snap = await getDoc(doc(db, "users", uid));
+  return snap.exists() && (snap.data() as any).wajahTerdaftar === true;
 }
 
-// ---- Konfigurasi jam kerja (dari env, bisa dipindah ke Firestore) ----
-export function konfigurasi() {
-  return {
-    jamMasuk: process.env.NEXT_PUBLIC_JAM_MASUK || "08:00",
-    jamPulang: process.env.NEXT_PUBLIC_JAM_PULANG || "16:00",
-    toleransi: parseInt(process.env.NEXT_PUBLIC_TOLERANSI_MENIT || "15", 10),
-    threshold: parseFloat(process.env.NEXT_PUBLIC_FACE_THRESHOLD || "0.5"),
-  };
-}
+// ================= Absensi =================
 
-// Tentukan status berdasarkan jam masuk + toleransi
-export function hitungStatus(jamMasukStr: string, toleransiMenit: number): "hadir" | "terlambat" {
-  const now = new Date();
-  const [h, m] = jamMasukStr.split(":").map(Number);
-  const batas = new Date();
-  batas.setHours(h, m + toleransiMenit, 0, 0);
-  return now <= batas ? "hadir" : "terlambat";
-}
-
-// ---- Absensi ----
 export interface Absensi {
   id: string;
   userId: string;
@@ -61,39 +92,40 @@ export interface Absensi {
   matchScorePulang?: number;
   latitude?: number;
   longitude?: number;
+  jarakKantorMasuk?: number;
+  jarakKantorPulang?: number;
+}
+
+export interface HasilAbsen {
+  mode: "masuk" | "pulang";
+  status: string;
+  jam: string;
+  tanggal: string;
+  skor: number;
+}
+
+/**
+ * Kirim descriptor wajah ke server untuk diverifikasi dan dicatat.
+ * Server yang memutuskan ini absen masuk atau pulang, jamnya, dan statusnya.
+ */
+export async function absenSekarang(
+  descriptor: number[],
+  lat?: number | null,
+  lng?: number | null,
+  akurasi?: number | null
+): Promise<HasilAbsen> {
+  return panggilApi<HasilAbsen>("/api/absen", {
+    descriptor,
+    lat: lat ?? null,
+    lng: lng ?? null,
+    akurasi: akurasi ?? null,
+  });
 }
 
 export async function absensiHariIni(uid: string): Promise<Absensi | null> {
   const id = `${uid}_${tanggalHariIni()}`;
   const snap = await getDoc(doc(db, "absensi", id));
   return snap.exists() ? ({ id, ...(snap.data() as any) }) : null;
-}
-
-export async function catatMasuk(
-  uid: string, status: string, score: number,
-  lat?: number, lng?: number
-) {
-  const tgl = tanggalHariIni();
-  const id = `${uid}_${tgl}`;
-  await setDoc(doc(db, "absensi", id), {
-    userId: uid,
-    tanggal: tgl,
-    jamMasuk: serverTimestamp(),
-    status,
-    matchScoreMasuk: score,
-    latitude: lat ?? null,
-    longitude: lng ?? null,
-  }, { merge: true });
-}
-
-export async function catatPulang(uid: string, score: number, lat?: number, lng?: number) {
-  const id = `${uid}_${tanggalHariIni()}`;
-  await setDoc(doc(db, "absensi", id), {
-    jamPulang: serverTimestamp(),
-    matchScorePulang: score,
-    latitudePulang: lat ?? null,
-    longitudePulang: lng ?? null,
-  }, { merge: true });
 }
 
 // Riwayat absensi milik user (tanpa orderBy agar tak butuh composite index)
@@ -147,4 +179,16 @@ export async function absensiSemuaHariIni(): Promise<Absensi[]> {
   const q = query(collection(db, "absensi"), where("tanggal", "==", tanggalHariIni()));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+}
+
+// ---- Jarak dua koordinat dalam meter (untuk indikator di UI) ----
+export function jarakMeter(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const rad = (x: number) => (x * Math.PI) / 180;
+  const dLat = rad(lat2 - lat1);
+  const dLng = rad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
 }

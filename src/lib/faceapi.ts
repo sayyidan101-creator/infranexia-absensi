@@ -28,12 +28,23 @@ export async function getFaceDescriptor(
   return result ? result.descriptor : null;
 }
 
-// Ambil wajah lengkap (untuk deteksi kedip / liveness)
+// Ambil wajah lengkap (deteksi + landmark + descriptor)
 export async function getFullFace(input: HTMLVideoElement) {
   return faceapi
     .detectSingleFace(input, detectorOptions())
     .withFaceLandmarks()
     .withFaceDescriptor();
+}
+
+/**
+ * Hanya deteksi + landmark, TANPA menghitung descriptor 128-d.
+ * Dipakai untuk loop liveness setiap frame: jauh lebih ringan sehingga
+ * deteksi kedip/menoleh tetap responsif di ponsel kelas menengah.
+ */
+export async function getFaceLandmarks(input: HTMLVideoElement) {
+  return faceapi
+    .detectSingleFace(input, detectorOptions())
+    .withFaceLandmarks();
 }
 
 // Jarak Euclidean antar dua descriptor
@@ -71,6 +82,38 @@ export function eyeAspectRatio(landmarks: faceapi.FaceLandmarks68): number {
   const left = landmarks.getLeftEye();
   const right = landmarks.getRightEye();
   return (ear(left) + ear(right)) / 2;
+}
+
+// Mouth Aspect Ratio (MAR) untuk deteksi mulut terbuka.
+// Landmark mulut = 48..67; getMouth() mengembalikan 20 titik (indeks lokal 0..19).
+export function mouthAspectRatio(landmarks: faceapi.FaceLandmarks68): number {
+  const m = landmarks.getMouth();
+  const jarak = (p: faceapi.Point, q: faceapi.Point) => Math.hypot(p.x - q.x, p.y - q.y);
+  // 0 = sudut kiri (48), 6 = sudut kanan (54), 3 = tengah atas (51), 9 = tengah bawah (57)
+  const lebar = jarak(m[0], m[6]);
+  const tinggi = jarak(m[3], m[9]);
+  return lebar === 0 ? 0 : tinggi / lebar;
+}
+
+/**
+ * Perkiraan arah kepala (yaw) dari posisi hidung terhadap kedua sudut mata luar.
+ * Nilai < 0 = menoleh ke kiri (dari sudut pandang pengguna),
+ * nilai > 0 = menoleh ke kanan. Rentang kira-kira -1..1.
+ */
+export function yawRatio(landmarks: faceapi.FaceLandmarks68): number {
+  const kiri = landmarks.getLeftEye();
+  const kanan = landmarks.getRightEye();
+  const hidung = landmarks.getNose();
+
+  const sudutKiri = kiri[0];   // ujung luar mata kiri (36)
+  const sudutKanan = kanan[3]; // ujung luar mata kanan (45)
+  const ujungHidung = hidung[3] || hidung[hidung.length - 1]; // titik 30 = ujung hidung
+
+  const lebar = sudutKanan.x - sudutKiri.x;
+  if (Math.abs(lebar) < 1) return 0;
+
+  const tengah = (sudutKiri.x + sudutKanan.x) / 2;
+  return ((ujungHidung.x - tengah) / lebar) * 2;
 }
 
 export { faceapi };

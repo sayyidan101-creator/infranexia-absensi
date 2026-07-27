@@ -1,5 +1,29 @@
+# Dependency & build
 node_modules
 .next
+out
+build
+
+# Environment — jangan pernah di-commit
+.env
 .env.local
+.env*.local
+
+# Kredensial Firebase Admin — akses penuh ke database, wajib di luar Git
+*serviceAccount*.json
+*firebase-adminsdk*.json
+serviceAccountKey.json
+
+# Log & berkas sistem
 *.log
+npm-debug.log*
 .DS_Store
+Thumbs.db
+
+# Editor
+.vscode
+.idea
+
+# Firebase CLI
+.firebase
+firebase-debug.log

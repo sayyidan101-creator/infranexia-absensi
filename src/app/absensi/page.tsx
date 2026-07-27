@@ -5,9 +5,10 @@ import dynamic from "next/dynamic";
 import Protected from "@/components/Protected";
 import { useAuth } from "@/context/AuthContext";
 import { Pesan, Konfeti } from "@/components/ui";
+import { pesanError } from "@/lib/users";
 import {
-  ambilWajah, sudahEnroll, absensiHariIni, catatMasuk, catatPulang,
-  konfigurasi, hitungStatus, Absensi,
+  sudahEnroll, absensiHariIni, absenSekarang, ambilKonfigurasi,
+  jarakMeter, KONFIG_DEFAULT, Konfigurasi, Absensi,
 } from "@/lib/absensi";
 
 // face-api hanya jalan di browser — jangan ikut dirender di server
@@ -24,7 +25,11 @@ const FaceCamera = dynamic(() => import("@/components/FaceCamera"), {
 function getPosisi(): Promise<GeolocationPosition | null> {
   return new Promise((res) => {
     if (!navigator.geolocation) return res(null);
-    navigator.geolocation.getCurrentPosition((p) => res(p), () => res(null), { timeout: 5000 });
+    navigator.geolocation.getCurrentPosition(
+      (p) => res(p),
+      () => res(null),
+      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
+    );
   });
 }
 
@@ -35,53 +40,60 @@ function AbsensiInner() {
   const { user } = useAuth();
   const [enrolled, setEnrolled] = useState<boolean | null>(null);
   const [absen, setAbsen] = useState<Absensi | null>(null);
+  const [cfg, setCfg] = useState<Konfigurasi>(KONFIG_DEFAULT);
   const [pesan, setPesan] = useState<{ t: "ok" | "err" | "info"; s: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [sukses, setSukses] = useState(false);
+  const [posisi, setPosisi] = useState<{ jarak: number | null; ada: boolean } | null>(null);
 
   const refresh = async () => {
     if (!user) return;
     setEnrolled(await sudahEnroll(user.uid));
     setAbsen(await absensiHariIni(user.uid));
   };
+
   useEffect(() => { refresh(); }, [user]);
+  useEffect(() => { ambilKonfigurasi().then(setCfg); }, []);
+
+  // Tampilkan status lokasi lebih awal agar pengguna tidak kaget saat ditolak server
+  useEffect(() => {
+    if (!cfg.geofenceAktif) return;
+    (async () => {
+      const p = await getPosisi();
+      if (!p) { setPosisi({ jarak: null, ada: false }); return; }
+      const jarak = cfg.kantorLat != null && cfg.kantorLng != null
+        ? jarakMeter(p.coords.latitude, p.coords.longitude, cfg.kantorLat, cfg.kantorLng)
+        : null;
+      setPosisi({ jarak, ada: true });
+    })();
+  }, [cfg]);
 
   const proses = async (descriptor: number[]) => {
     if (!user) return;
     setBusy(true);
-    setPesan({ t: "info", s: "Memverifikasi wajah..." });
+    setPesan({ t: "info", s: "Memverifikasi wajah di server..." });
     try {
-      const stored = await ambilWajah(user.uid);
-      if (!stored) { setPesan({ t: "err", s: "Kamu belum mendaftarkan wajah." }); return; }
+      const p = await getPosisi();
+      const hasil = await absenSekarang(
+        descriptor,
+        p?.coords.latitude ?? null,
+        p?.coords.longitude ?? null,
+        p?.coords.accuracy ?? null
+      );
 
-      const { threshold, jamMasuk, toleransi } = konfigurasi();
-      const { bestMatchDistance } = await import("@/lib/faceapi");
-      const jarak = bestMatchDistance(descriptor, stored);
-
-      if (jarak > threshold) {
-        setPesan({ t: "err", s: `Wajah tidak cocok (jarak ${jarak.toFixed(3)}). Coba lagi dengan pencahayaan lebih baik.` });
-        if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-        return;
-      }
-
-      const pos = await getPosisi();
-      const lat = pos?.coords.latitude;
-      const lng = pos?.coords.longitude;
-
-      if (!absen?.jamMasuk) {
-        const status = hitungStatus(jamMasuk, toleransi);
-        await catatMasuk(user.uid, status, jarak, lat, lng);
-        setPesan({ t: "ok", s: `Absen masuk berhasil — status ${status.toUpperCase()}` });
-      } else if (!absen?.jamPulang) {
-        await catatPulang(user.uid, jarak, lat, lng);
-        setPesan({ t: "ok", s: "Absen pulang berhasil. Terima kasih!" });
-      }
+      setPesan({
+        t: "ok",
+        s: hasil.mode === "masuk"
+          ? `Absen masuk tercatat pukul ${hasil.jam} — status ${hasil.status.toUpperCase()}.`
+          : `Absen pulang tercatat pukul ${hasil.jam}. Terima kasih!`,
+      });
       setSukses(true);
       if (navigator.vibrate) navigator.vibrate([15, 45, 15, 45, 30]);
       setTimeout(() => setSukses(false), 2200);
       await refresh();
     } catch (e: any) {
-      setPesan({ t: "err", s: "Terjadi kesalahan: " + (e?.message || e) });
+      setPesan({ t: "err", s: pesanError(e) });
+      if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
     } finally {
       setBusy(false);
     }
@@ -89,7 +101,7 @@ function AbsensiInner() {
 
   const sudahLengkap = !!(absen?.jamMasuk && absen?.jamPulang);
   const label = !absen?.jamMasuk ? "Absen Masuk" : !absen?.jamPulang ? "Absen Pulang" : "Selesai";
-  const cfg = konfigurasi();
+  const diLuarRadius = !!(posisi?.ada && posisi.jarak != null && posisi.jarak > cfg.radiusMeter);
 
   return (
     <div className="max-w-md mx-auto space-y-4">
@@ -102,8 +114,31 @@ function AbsensiInner() {
         <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">
           {new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" })}
         </h1>
-        <p className="text-sm text-gray-500 mt-0.5">Jam kerja {cfg.jamMasuk}–{cfg.jamPulang} · toleransi {cfg.toleransi} menit.</p>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Jam kerja {cfg.jamMasuk}–{cfg.jamPulang} · toleransi {cfg.toleransiMenit} menit.
+        </p>
       </div>
+
+      {/* Status lokasi (hanya saat geofencing aktif) */}
+      {cfg.geofenceAktif && (
+        <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-sm anim-fade-up d-1 ${
+          !posisi ? "bg-gray-50 border-gray-100 text-gray-500"
+            : !posisi.ada ? "bg-amber-50 border-amber-100 text-amber-700"
+            : diLuarRadius ? "bg-red-50 border-red-100 text-telkomRed"
+            : "bg-emerald-50 border-emerald-100 text-emerald-700"
+        }`}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" />
+          </svg>
+          <span className="flex-1">
+            {!posisi ? "Memeriksa lokasi..."
+              : !posisi.ada ? "Lokasi tidak terdeteksi — aktifkan izin lokasi."
+              : posisi.jarak == null ? "Lokasi kantor belum diatur admin."
+              : diLuarRadius ? `${Math.round(posisi.jarak)} m dari kantor — di luar radius ${cfg.radiusMeter} m.`
+              : `Berada dalam area kantor (${Math.round(posisi.jarak)} m).`}
+          </span>
+        </div>
+      )}
 
       {enrolled === false && (
         <div className="anim-fade-up d-1">
@@ -128,13 +163,18 @@ function AbsensiInner() {
           </div>
         ) : enrolled ? (
           <FaceCamera mode="verify" onCapture={proses} busy={busy} />
-        ) : (
+        ) : enrolled === false ? (
           <div className="flex flex-col items-center text-center py-8 gap-3">
             <span className="w-16 h-16 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center">
               <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
             </span>
             <p className="font-semibold text-navy-900">Wajah belum terdaftar</p>
             <Link href="/enroll" className="mt-1 px-5 py-3 rounded-2xl bg-navy-900 text-white text-sm font-semibold press">Daftar Wajah</Link>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-full max-w-sm aspect-[4/3] rounded-2xl skeleton" />
+            <div className="w-full max-w-sm h-[52px] rounded-2xl skeleton" />
           </div>
         )}
 
@@ -150,7 +190,7 @@ function AbsensiInner() {
       </div>
 
       <p className="text-center text-[11px] text-gray-400 anim-fade-up d-4">
-        Pastikan wajah terkena cahaya cukup dan tidak tertutup masker.
+        Jam absen diambil dari waktu server, bukan jam perangkat.
       </p>
     </div>
   );

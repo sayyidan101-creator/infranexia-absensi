@@ -1,23 +1,41 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import Protected from "@/components/Protected";
-import { collection, getDocs, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { buatUser, UserBaru } from "@/lib/users";
+import { buatUser, ubahUser, hapusUser, pesanError, UserBaru } from "@/lib/users";
 import { useAuth } from "@/context/AuthContext";
 import Avatar from "@/components/Avatar";
+import PengaturanAbsensi from "@/components/PengaturanAbsensi";
+import KartuKredensial, { HasilAkun } from "@/components/KartuKredensial";
 import { CountUp, Skeleton, Kosong, Pesan } from "@/components/ui";
 
 interface U {
   id: string; name: string; email: string; role: string;
   nim?: string; kampus?: string; jurusan?: string; status?: string; createdAt?: any; foto?: string;
+  telepon?: string; wajahTerdaftar?: boolean;
+}
+
+/** Penanda apakah peserta sudah mendaftarkan wajahnya. */
+function LencanaWajah({ ada }: { ada?: boolean }) {
+  return (
+    <span title={ada ? "Wajah sudah terdaftar" : "Wajah belum terdaftar"}
+      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
+        ada ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+      }`}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        {ada ? <path d="m5 13 4 4L19 7" /> : <><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></>}
+      </svg>
+      Wajah
+    </span>
+  );
 }
 
 const BADGE = ["bg-blue-100 text-blue-700", "bg-emerald-100 text-emerald-700", "bg-purple-100 text-purple-700", "bg-amber-100 text-amber-700", "bg-pink-100 text-pink-700"];
 const badgeDivisi = (s: string) => BADGE[(s.charCodeAt(0) || 0) % BADGE.length];
 const tgl = (t?: any) => (t?.toDate ? t.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 
-const kosong: UserBaru = { name: "", email: "", password: "", role: "magang", nim: "", kampus: "", jurusan: "" };
+const kosong: UserBaru = { name: "", email: "", password: "", role: "magang", nim: "", kampus: "", jurusan: "", telepon: "" };
 
 function AdminInner() {
   const { profil } = useAuth();
@@ -30,7 +48,8 @@ function AdminInner() {
   const PER = 8;
 
   // modal: create | edit | view | null
-  const [modal, setModal] = useState<null | "create" | "edit" | "view">(null);
+  const [modal, setModal] = useState<null | "create" | "edit" | "view" | "hasil">(null);
+  const [hasilAkun, setHasilAkun] = useState<HasilAkun | null>(null);
   const [form, setForm] = useState<any>(kosong);
   const [pesan, setPesan] = useState<{ t: "ok" | "err"; s: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,16 +98,37 @@ function AdminInner() {
     setBusy(true);
     try {
       if (modal === "create") {
-        await buatUser({ name: form.name, email: form.email, password: form.password, role: form.role, nim: form.nim, kampus: form.kampus, jurusan: form.jurusan });
-      } else if (modal === "edit") {
-        await updateDoc(doc(db, "users", form.id), {
-          name: form.name, role: form.role, nim: form.nim || "", kampus: form.kampus || "",
-          jurusan: form.jurusan || "", status: form.status || "aktif",
+        const res = await buatUser({
+          name: form.name, email: form.email, password: form.password, role: form.role,
+          nim: form.nim, kampus: form.kampus, jurusan: form.jurusan, telepon: form.telepon,
         });
+        setHasilAkun({
+          nama: form.name, email: form.email, password: form.password, peran: form.role,
+          telepon: form.telepon, emailTerkirim: res.emailTerkirim, alasanEmail: res.alasanEmail,
+        });
+        setModal("hasil");
+        load();
+        return;
+      }
+      if (modal === "edit") {
+        const res = await ubahUser({
+          uid: form.id, name: form.name, email: form.email, password: form.password || undefined,
+          role: form.role, nim: form.nim, kampus: form.kampus, jurusan: form.jurusan,
+          telepon: form.telepon, status: form.status,
+        });
+        const catatan = [
+          res.emailBerubah ? "email login diperbarui" : "",
+          res.passwordBerubah ? "password diganti" : "",
+        ].filter(Boolean).join(" & ");
+        setPesan({ t: "ok", s: `Data ${form.name} tersimpan${catatan ? ` — ${catatan}` : ""}.` });
+        if (res.emailBerubah && form.id === profil?.uid) {
+          setPesan({ t: "ok", s: "Email akunmu sendiri berubah. Kamu akan diminta login ulang." });
+          setTimeout(() => { window.location.replace("/login"); }, 2500);
+        }
       }
       setModal(null); load();
     } catch (e: any) {
-      setPesan({ t: "err", s: e?.code === "auth/email-already-in-use" ? "Email sudah terpakai." : (e?.message || "Gagal menyimpan.") });
+      setPesan({ t: "err", s: pesanError(e) });
     } finally { setBusy(false); }
   };
 
@@ -97,12 +137,13 @@ function AdminInner() {
     if (!u) return;
     setBusy(true);
     try {
-      await deleteDoc(doc(db, "users", u.id));
-      await deleteDoc(doc(db, "faceData", u.id)).catch(() => {});
+      const jumlah = await hapusUser(u.id);
       setKonfirmHapus(null);
+      setPesan({ t: "ok", s: `${u.name} dihapus beserta ${jumlah} catatan absensinya.` });
       load();
     } catch (e: any) {
-      setPesan({ t: "err", s: "Gagal menghapus: " + (e?.message || e) });
+      setPesan({ t: "err", s: pesanError(e) });
+      setKonfirmHapus(null);
     } finally { setBusy(false); }
   };
 
@@ -129,6 +170,9 @@ function AdminInner() {
       </div>
 
       {pesan && !modal && <Pesan tipe={pesan.t}>{pesan.s}</Pesan>}
+
+      {/* Pengaturan jam kerja, ketelitian wajah, & geofencing */}
+      {bisaKelola && <PengaturanAbsensi />}
 
       {/* Statistik */}
       <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
@@ -168,7 +212,10 @@ function AdminInner() {
                 <Avatar name={u.name} foto={u.foto} size={42} />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-navy-900 truncate">{u.name}</p>
-                  <p className="text-xs text-gray-400 truncate">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-xs text-gray-400 truncate">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
+                    {u.role === "magang" && <LencanaWajah ada={u.wajahTerdaftar} />}
+                  </div>
                 </div>
                 <span className="inline-flex items-center gap-1.5 text-xs shrink-0">
                   <i className={`w-2 h-2 rounded-full ${st === "aktif" ? "bg-emerald-500" : "bg-gray-300"}`} />
@@ -217,7 +264,10 @@ function AdminInner() {
                         <Avatar name={u.name} foto={u.foto} size={36} />
                         <div>
                           <p className="font-medium text-navy-900">{u.name}</p>
-                          <p className="text-xs text-gray-400">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-400">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
+                            {u.role === "magang" && <LencanaWajah ada={u.wajahTerdaftar} />}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -279,12 +329,15 @@ function AdminInner() {
             <div className="w-10 h-1.5 rounded-full bg-gray-200 mx-auto mt-3 sm:hidden" />
             <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
               <h2 className="text-base sm:text-lg font-bold text-navy-900">
-                {modal === "create" ? "Tambah Magang Baru" : modal === "edit" ? "Edit Data" : "Detail Peserta"}
+                {modal === "create" ? "Tambah Magang Baru" : modal === "edit" ? "Edit Data" : modal === "hasil" ? "Akun Dibuat" : "Detail Peserta"}
               </h2>
               <button onClick={() => setModal(null)} aria-label="Tutup"
                 className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 press">✕</button>
             </div>
 
+            {modal === "hasil" && hasilAkun ? (
+              <KartuKredensial hasil={hasilAkun} onTutup={() => { setModal(null); setHasilAkun(null); }} />
+            ) : (
             <div className="px-5 py-4">
               {pesan && <div className="mb-4"><Pesan tipe={pesan.t}>{pesan.s}</Pesan></div>}
 
@@ -296,6 +349,7 @@ function AdminInner() {
                   <Info label="NIM / ID" val={form.nim || "-"} />
                   <Info label="Kampus" val={form.kampus || "-"} />
                   <Info label="Divisi / Jurusan" val={form.jurusan || "-"} />
+                  <Info label="WhatsApp" val={form.telepon || "-"} />
                   <Info label="Status" val={form.status || "aktif"} />
                 </div>
               ) : (
@@ -315,18 +369,23 @@ function AdminInner() {
                     </select>
                   </FField>
                   <FField label="Nama Lengkap"><input value={form.name} onChange={(e) => set("name", e.target.value)} className={inp} /></FField>
-                  {modal === "create" && <FField label="Email"><input type="email" inputMode="email" value={form.email} onChange={(e) => set("email", e.target.value)} className={inp} /></FField>}
-                  {modal === "create" && <FField label="Password (min. 6)"><input type="password" value={form.password} onChange={(e) => set("password", e.target.value)} className={inp} /></FField>}
+                  <FField label="Email (dipakai untuk login)"><input type="email" inputMode="email" autoCapitalize="none" value={form.email || ""} onChange={(e) => set("email", e.target.value)} className={inp} /></FField>
+                  <FField label={modal === "create" ? "Password (min. 6)" : "Password baru (opsional)"}><input type="password" placeholder={modal === "edit" ? "Kosongkan bila tidak diganti" : ""} value={form.password || ""} onChange={(e) => set("password", e.target.value)} className={inp} /></FField>
                   {form.role === "magang" && <>
                     <FField label="NIM / ID"><input value={form.nim || ""} onChange={(e) => set("nim", e.target.value)} className={inp} /></FField>
                     <FField label="Kampus"><input value={form.kampus || ""} onChange={(e) => set("kampus", e.target.value)} className={inp} /></FField>
                     <FField label="Divisi / Jurusan"><input value={form.jurusan || ""} onChange={(e) => set("jurusan", e.target.value)} className={inp} /></FField>
                   </>}
+                  <FField label="Nomor WhatsApp">
+                    <input type="tel" inputMode="tel" placeholder="0812xxxxxxxx"
+                      value={form.telepon || ""} onChange={(e) => set("telepon", e.target.value)} className={inp} />
+                  </FField>
                 </div>
               )}
             </div>
+            )}
 
-            {modal !== "view" && (
+            {modal !== "view" && modal !== "hasil" && (
               <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-3 flex gap-2">
                 <button onClick={() => setModal(null)} className="flex-1 sm:flex-none px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium press">Batal</button>
                 <button onClick={simpan} disabled={busy}

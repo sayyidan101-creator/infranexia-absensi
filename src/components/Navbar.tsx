@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Avatar from "@/components/Avatar";
 
@@ -49,7 +49,6 @@ const I = {
 export default function Navbar() {
   const { profil, logout } = useAuth();
   const pathname = usePathname();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -77,7 +76,18 @@ export default function Navbar() {
     { href: "/admin", label: "Kelola", icon: I.kelola, roles: ["admin", "pembimbing"] },
   ].filter((m) => m.roles.includes(profil.role));
 
-  const keluar = async () => { setOpen(false); await logout(); router.push("/login"); };
+  const keluar = async () => {
+    setOpen(false);
+    try {
+      await logout();
+    } catch {
+      // Abaikan: sesi lokal tetap dibersihkan lewat muat ulang di bawah
+    }
+    // Muat ulang penuh, bukan router.push. Ini memastikan seluruh state React,
+    // cache router Next.js, dan sisa data pengguna benar-benar hilang —
+    // navigasi sisi-klien saja kadang menyisakan halaman lama di layar.
+    window.location.replace("/login");
+  };
 
   return (
     <>

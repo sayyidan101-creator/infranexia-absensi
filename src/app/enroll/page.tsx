@@ -27,6 +27,7 @@ function EnrollInner() {
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [alreadyEnrolled, setAlready] = useState(false);
+  const [gagal, setGagal] = useState("");
 
   useEffect(() => {
     if (user) sudahEnroll(user.uid).then(setAlready);
@@ -39,11 +40,18 @@ function EnrollInner() {
   const simpan = async () => {
     if (!user || samples.length < TARGET) return;
     setBusy(true);
-    await simpanWajah(user.uid, samples);
-    setSaved(true);
-    setAlready(true);
-    setBusy(false);
-    if (navigator.vibrate) navigator.vibrate([15, 45, 15, 45, 30]);
+    setGagal("");
+    try {
+      await simpanWajah(samples);
+      setSaved(true);
+      setAlready(true);
+      if (navigator.vibrate) navigator.vibrate([15, 45, 15, 45, 30]);
+    } catch (e: any) {
+      setGagal(e?.message || "Gagal menyimpan data wajah.");
+      if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const progres = Math.round((samples.length / TARGET) * 100);
@@ -107,6 +115,8 @@ function EnrollInner() {
         ) : (
           <>
             <FaceCamera mode="enroll" onCapture={onCapture} busy={busy} />
+
+            {gagal && <div className="mt-4"><Pesan tipe="err">{gagal}</Pesan></div>}
 
             <button
               onClick={simpan}
