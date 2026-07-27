@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Protected from "@/components/Protected";
+import Avatar from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { CountUp, SkeletonKartu, Skeleton, Kosong } from "@/components/ui";
 import {
-  absensiHariIni, absensiSemuaHariIni, absensiSejak, sudahEnroll,
-  riwayatAbsensi, petaNamaUser, jumlahMagang, Absensi,
+  absensiHariIni, absensiSejak, sudahEnroll, riwayatAbsensi,
+  petaUserDetail, tanggalHariIni, Absensi,
 } from "@/lib/absensi";
 
 const HARI = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
@@ -63,6 +63,50 @@ function StatCard({ label, value, angka, chip, chipColor, icon, iconBg, delay = 
       <p className="text-[10px] sm:text-xs text-gray-500 mt-1.5 uppercase tracking-wide">{label}</p>
       <div className="absolute -right-3 -bottom-3 opacity-[0.04] scale-[2.2] pointer-events-none">{icon}</div>
     </div>
+  );
+}
+
+// ---------- Bar ringkasan kehadiran hari ini ----------
+function RingkasanHariIni({ hadir, telat, belum, total }: { hadir: number; telat: number; belum: number; total: number }) {
+  const t = Math.max(1, total);
+  const pHadir = (hadir / t) * 100;
+  const pTelat = (telat / t) * 100;
+  const pct = Math.round(((hadir + telat) / t) * 100);
+
+  return (
+    <div className="card p-5 anim-fade-up d-1">
+      <div className="flex items-end justify-between gap-4 mb-4">
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wide">Kehadiran hari ini</p>
+          <p className="text-3xl font-bold text-navy-900 mt-1 leading-none tabular-nums">
+            <CountUp value={pct} suffix="%" />
+          </p>
+        </div>
+        <p className="text-sm text-gray-500 tabular-nums">
+          <span className="font-semibold text-navy-900">{hadir + telat}</span> dari {total} peserta
+        </p>
+      </div>
+
+      <div className="flex h-3 rounded-full overflow-hidden bg-gray-100">
+        <div className="bg-emerald-500 transition-all duration-700 ease-out" style={{ width: `${pHadir}%` }} />
+        <div className="bg-amber-400 transition-all duration-700 ease-out" style={{ width: `${pTelat}%` }} />
+      </div>
+
+      <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3.5 text-xs">
+        <Titik warna="bg-emerald-500" label="Tepat waktu" nilai={hadir} />
+        <Titik warna="bg-amber-400" label="Terlambat" nilai={telat} />
+        <Titik warna="bg-gray-200" label="Belum absen" nilai={belum} />
+      </div>
+    </div>
+  );
+}
+function Titik({ warna, label, nilai }: { warna: string; label: string; nilai: number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-gray-500">
+      <i className={`w-2.5 h-2.5 rounded-full ${warna}`} />
+      {label}
+      <b className="text-navy-900 tabular-nums">{nilai}</b>
+    </span>
   );
 }
 
@@ -130,41 +174,7 @@ function Legend() {
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Hadir</span>
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> Terlambat</span>
       </div>
-      <span className="text-[11px] text-gray-400">Diperbarui otomatis</span>
-    </div>
-  );
-}
-
-// ---------- Donut ----------
-function Donut({ tepat, telat, belum }: { tepat: number; telat: number; belum: number }) {
-  const total = Math.max(1, tepat + telat + belum);
-  const p1 = (tepat / total) * 100;
-  const p2 = p1 + (telat / total) * 100;
-  const pct = Math.round((tepat / total) * 100);
-  return (
-    <div className="flex items-center gap-5">
-      <div className="relative w-24 h-24 sm:w-28 sm:h-28 shrink-0">
-        <div className="w-full h-full rounded-full transition-all duration-700"
-          style={{ background: `conic-gradient(#10b981 0% ${p1}%, #f59e0b ${p1}% ${p2}%, #e5e7eb ${p2}% 100%)` }} />
-        <div className="absolute inset-[13px] sm:inset-[14px] bg-white rounded-full flex flex-col items-center justify-center">
-          <span className="text-lg sm:text-xl font-bold text-navy-900 tabular-nums"><CountUp value={pct} suffix="%" /></span>
-          <span className="text-[10px] text-gray-400">Tepat Waktu</span>
-        </div>
-      </div>
-      <div className="space-y-2.5 text-sm flex-1">
-        <Row warna="bg-emerald-500" label="Tepat Waktu" val={tepat} />
-        <Row warna="bg-amber-400" label="Terlambat" val={telat} />
-        <Row warna="bg-gray-300" label="Belum Absen" val={belum} />
-      </div>
-    </div>
-  );
-}
-function Row({ warna, label, val }: any) {
-  return (
-    <div className="flex items-center gap-2">
-      <i className={`w-2.5 h-2.5 rounded-full ${warna} inline-block`} />
-      <span className="text-gray-500 flex-1">{label}</span>
-      <span className="font-semibold text-navy-900 tabular-nums">{val}</span>
+      <span className="text-[11px] text-gray-400">7 hari terakhir</span>
     </div>
   );
 }
@@ -177,9 +187,7 @@ function Activity({ items }: { items: any[] }) {
     <ul className="divide-y divide-gray-100">
       {items.map((it, i) => (
         <li key={i} className="flex items-center gap-3 py-2.5 anim-fade-up" style={{ animationDelay: `${i * 50}ms` }}>
-          <div className="w-9 h-9 rounded-full bg-navy-800 text-white flex items-center justify-center text-sm font-semibold shrink-0">
-            {it.nama.charAt(0).toUpperCase()}
-          </div>
+          <Avatar name={it.nama} foto={it.foto} size={36} />
           <div className="flex-1 min-w-0"><p className="text-sm text-navy-900 truncate"><b>{it.nama}</b> {it.teks}</p></div>
           <span className={`text-xs font-medium shrink-0 ${it.warna}`}>{it.waktu}</span>
         </li>
@@ -188,25 +196,74 @@ function Activity({ items }: { items: any[] }) {
   );
 }
 
+// ---------- Daftar yang belum absen ----------
+function BelumAbsen({ orang }: { orang: any[] }) {
+  if (orang.length === 0)
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center anim-fade-up">
+        <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center mb-3">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m5 13 4 4L19 7" /></svg>
+        </div>
+        <p className="text-sm font-medium text-navy-900">Semua sudah absen</p>
+        <p className="text-xs text-gray-400 mt-1">Tidak ada peserta yang tertinggal hari ini.</p>
+      </div>
+    );
+
+  const tampil = orang.slice(0, 6);
+  return (
+    <>
+      <ul className="divide-y divide-gray-100">
+        {tampil.map((u, i) => (
+          <li key={u.id} className="flex items-center gap-3 py-2.5 anim-fade-up" style={{ animationDelay: `${i * 50}ms` }}>
+            <Avatar name={u.name} foto={u.foto} size={36} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-navy-900 truncate">{u.name}</p>
+              <p className="text-xs text-gray-400 truncate">{u.jurusan || u.kampus || "—"}</p>
+            </div>
+            {!u.wajahTerdaftar && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 shrink-0">
+                belum daftar wajah
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {orang.length > tampil.length && (
+        <p className="text-xs text-gray-400 pt-3 text-center">+{orang.length - tampil.length} peserta lainnya</p>
+      )}
+    </>
+  );
+}
+
 // ================= DASHBOARD ADMIN =================
-function DashAdmin({ nama, role }: { nama: string; role: string }) {
-  const router = useRouter();
+function DashAdmin({ nama }: { nama: string }) {
   const [total, setTotal] = useState(0);
   const [today, setToday] = useState<Absensi[]>([]);
   const [chart, setChart] = useState<any[]>([]);
   const [aktivitas, setAktivitas] = useState<any[]>([]);
+  const [belumAbsen, setBelumAbsen] = useState<any[]>([]);
   const [mode, setMode] = useState<"bar" | "line">("bar");
   const [loading, setLoading] = useState(true);
-  const [rekap, setRekap] = useState<any[]>([]);
 
   const muat = async () => {
     setLoading(true);
-    const t = await jumlahMagang();
-    const hariIni = await absensiSemuaHariIni();
     const hari = last7();
-    const sejak = await absensiSejak(hari[0].tgl);
-    const namaMap = await petaNamaUser();
-    setTotal(t); setToday(hariIni);
+
+    // Dua permintaan saja: seluruh profil + absensi 7 hari terakhir.
+    // Jumlah magang dan absensi hari ini diturunkan dari sini, bukan
+    // ditanyakan ulang ke Firestore.
+    const [detail, sejak] = await Promise.all([petaUserDetail(), absensiSejak(hari[0].tgl)]);
+
+    const magang = Object.entries(detail)
+      .map(([id, d]: any) => ({ id, ...d }))
+      .filter((u) => u.role === "magang" && (u.status || "aktif") === "aktif");
+    setTotal(magang.length);
+
+    const hariIni = sejak.filter((a) => a.tanggal === tanggalHariIni());
+    setToday(hariIni);
+
+    const sudah = new Set(hariIni.map((a) => a.userId));
+    setBelumAbsen(magang.filter((u) => !sudah.has(u.id)));
 
     setChart(hari.map((h) => {
       const rec = sejak.filter((a) => a.tanggal === h.tgl);
@@ -214,16 +271,14 @@ function DashAdmin({ nama, role }: { nama: string; role: string }) {
     }));
 
     const ev: any[] = [];
-    const rk: any[] = [];
     sejak.forEach((a) => {
-      const nm = namaMap[a.userId] || "Pengguna";
-      rk.push({ tanggal: a.tanggal, nama: nm, masuk: jam(a.jamMasuk), pulang: jam(a.jamPulang), status: a.status });
-      if (a.jamMasuk) ev.push({ nama: nm, teks: a.status === "terlambat" ? "absen masuk (terlambat)" : "absen masuk", waktu: jam(a.jamMasuk), sort: a.jamMasuk.toDate?.().getTime() || 0, warna: a.status === "terlambat" ? "text-amber-600" : "text-emerald-600" });
-      if (a.jamPulang) ev.push({ nama: nm, teks: "absen pulang", waktu: jam(a.jamPulang), sort: a.jamPulang.toDate?.().getTime() || 0, warna: "text-navy-700" });
+      const u = detail[a.userId] || {};
+      const nm = u.name || "Pengguna";
+      if (a.jamMasuk) ev.push({ nama: nm, foto: u.foto, teks: a.status === "terlambat" ? "absen masuk (terlambat)" : "absen masuk", waktu: jam(a.jamMasuk), sort: a.jamMasuk.toDate?.().getTime() || 0, warna: a.status === "terlambat" ? "text-amber-600" : "text-emerald-600" });
+      if (a.jamPulang) ev.push({ nama: nm, foto: u.foto, teks: "absen pulang", waktu: jam(a.jamPulang), sort: a.jamPulang.toDate?.().getTime() || 0, warna: "text-navy-700" });
     });
     ev.sort((x, y) => y.sort - x.sort);
     setAktivitas(ev.slice(0, 6));
-    setRekap(rk);
     setLoading(false);
   };
   useEffect(() => { muat(); }, []);
@@ -234,38 +289,27 @@ function DashAdmin({ nama, role }: { nama: string; role: string }) {
   const belum = Math.max(0, total - hadir - telat);
   const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
 
-  const ekspor = () => {
-    const head = "Tanggal,Nama,Masuk,Pulang,Status\n";
-    const body = rekap.map((r) => `${r.tanggal},"${r.nama}",${r.masuk},${r.pulang},${r.status}`).join("\n");
-    const blob = new Blob([head + body], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `laporan-absensi-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click(); URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="space-y-5 md:space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 anim-fade-up">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 anim-fade-up">
         <div>
           <Clock />
           <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {nama.split(" ")[0]}</h1>
           <p className="text-sm text-gray-500 mt-0.5">Pantau kehadiran magang secara real-time.</p>
         </div>
-        <div className="grid grid-cols-2 md:flex gap-2">
-          <button onClick={ekspor} className="inline-flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-navy-900 press hover:bg-gray-50">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
-            Ekspor
-          </button>
-          {role === "admin" && (
-            <button onClick={() => router.push("/admin")} className="inline-flex items-center justify-center gap-2 px-4 py-3 md:py-2.5 rounded-xl bg-navy-900 text-white text-sm font-medium press hover:bg-navy-800">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-              Tambah
-            </button>
-          )}
-        </div>
+        <button onClick={muat} disabled={loading}
+          className="self-start inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs font-medium text-navy-900 press hover:bg-gray-50 disabled:opacity-50">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={loading ? "animate-spin" : ""}>
+            <path d="M21 12a9 9 0 1 1-6.22-8.56" /><path d="M21 3v6h-6" />
+          </svg>
+          Perbarui
+        </button>
       </div>
+
+      {/* Ringkasan kehadiran */}
+      {loading ? <Skeleton className="h-[9.5rem] w-full rounded-2xl" />
+        : <RingkasanHariIni hadir={hadir} telat={telat} belum={belum} total={total} />}
 
       {/* Statistik */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -281,50 +325,51 @@ function DashAdmin({ nama, role }: { nama: string; role: string }) {
         </>)}
       </div>
 
-      {/* Grafik + panel kanan */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        <div className="lg:col-span-2 card p-4 sm:p-6 anim-fade-up d-3">
-          <div className="flex items-start justify-between mb-5 gap-3">
-            <div>
-              <h2 className="font-semibold text-navy-900">Tren Kehadiran</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Performa absensi 7 hari terakhir.</p>
-            </div>
-            <div className="flex bg-gray-100 rounded-lg p-0.5 shrink-0">
-              {(["bar", "line"] as const).map((m) => (
-                <button key={m} onClick={() => setMode(m)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-all ${mode === m ? "bg-white text-navy-900 shadow-sm" : "text-gray-500"}`}>{m}</button>
-              ))}
-            </div>
+      {/* Grafik */}
+      <div className="card p-4 sm:p-6 anim-fade-up d-3">
+        <div className="flex items-start justify-between mb-5 gap-3">
+          <div>
+            <h2 className="font-semibold text-navy-900">Tren Kehadiran</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Performa absensi sepekan terakhir.</p>
           </div>
-          {loading ? <Skeleton className="h-40 sm:h-44 w-full" /> : <Chart data={chart} mode={mode} />}
+          <div className="flex bg-gray-100 rounded-lg p-0.5 shrink-0">
+            {(["bar", "line"] as const).map((m) => (
+              <button key={m} onClick={() => setMode(m)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-all ${mode === m ? "bg-white text-navy-900 shadow-sm" : "text-gray-500"}`}>{m}</button>
+            ))}
+          </div>
+        </div>
+        {loading ? <Skeleton className="h-40 sm:h-44 w-full" /> : <Chart data={chart} mode={mode} />}
+      </div>
+
+      {/* Belum absen + aktivitas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="card p-4 sm:p-6 anim-fade-up d-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-navy-900">Belum Absen</h2>
+            {belumAbsen.length > 0 && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">
+                {belumAbsen.length} orang
+              </span>
+            )}
+          </div>
+          {loading ? <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-11 w-full" />)}</div>
+            : <BelumAbsen orang={belumAbsen} />}
         </div>
 
-        <div className="space-y-4 sm:space-y-6">
-          <div className="card p-4 sm:p-6 anim-fade-up d-4">
-            <h2 className="font-semibold text-navy-900 mb-4">Proporsi Harian</h2>
-            <Donut tepat={hadir} telat={telat} belum={belum} />
-          </div>
-          <div className="card p-4 sm:p-6 anim-fade-up d-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-navy-900">Aktivitas Terbaru</h2>
-              <button onClick={muat} className="inline-flex items-center gap-1 text-xs text-navy-700 press hover:underline">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={loading ? "animate-spin" : ""}>
-                  <path d="M21 12a9 9 0 1 1-6.22-8.56" /><path d="M21 3v6h-6" />
-                </svg>
-                Perbarui
-              </button>
-            </div>
-            <Activity items={aktivitas} />
-          </div>
+        <div className="card p-4 sm:p-6 anim-fade-up d-5">
+          <h2 className="font-semibold text-navy-900 mb-3">Aktivitas Terbaru</h2>
+          {loading ? <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-11 w-full" />)}</div>
+            : <Activity items={aktivitas} />}
         </div>
       </div>
 
       {/* Info sistem + footer */}
-      <div className="bg-gradient-to-r from-navy-900 to-navy-700 rounded-2xl p-5 flex items-center gap-3 text-white anim-fade-up d-6">
-        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+      <div className="bg-gradient-to-r from-navy-900 to-navy-700 rounded-2xl p-5 flex items-start gap-3 text-white anim-fade-up d-6">
+        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0 mt-1.5" />
         <div>
           <p className="text-sm font-medium">Sistem berjalan normal</p>
-          <p className="text-xs text-slate-300">Data absensi tersimpan di Firebase secara real-time.</p>
+          <p className="text-xs text-slate-300">Jam absensi dicatat dari waktu server, bukan perangkat pengguna.</p>
         </div>
       </div>
       <p className="text-center text-[10px] sm:text-xs text-gray-400 tracking-widest uppercase">InfraNexia Systems &copy; {new Date().getFullYear()}</p>
@@ -377,7 +422,7 @@ function DashMagang({ nama, uid }: { nama: string; uid: string }) {
         <p className="text-sm text-gray-500">Semoga harimu produktif hari ini.</p>
       </div>
 
-      {/* Kartu aksi utama — fokus mobile */}
+      {/* Kartu aksi utama */}
       {aksi ? (
         <Link href={aksi.href}
           className="block relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700 text-white p-5 shadow-lift press anim-fade-up d-1">
@@ -446,7 +491,7 @@ function DashInner() {
   if (!profil) return null;
   return profil.role === "magang"
     ? <DashMagang nama={profil.name} uid={profil.uid} />
-    : <DashAdmin nama={profil.name} role={profil.role} />;
+    : <DashAdmin nama={profil.name} />;
 }
 
 export default function DashboardPage() {
