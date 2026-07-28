@@ -2,9 +2,9 @@ rules_version = '2';
 
 // =====================================================================
 //  InfraNexia — Absensi Magang
-//  Prinsip: data absensi & data wajah TIDAK PERNAH disentuh browser.
+//  Prinsip: data absensi & pemetaan kartu TIDAK PERNAH disentuh browser.
 //  Semua penulisan lewat API route Next.js (Firebase Admin SDK) yang
-//  melewati rules ini, sehingga jam, status, pencocokan wajah, dan
+//  melewati rules ini, sehingga jam, status, keabsahan kartu, dan
 //  validasi lokasi selalu ditentukan server.
 // =====================================================================
 
@@ -61,7 +61,11 @@ service cloud.firestore {
     // ---------- absensi ----------
     // Read-only dari client. Penulisan hanya lewat API route (Admin SDK).
     match /absensi/{docId} {
-      allow get, list: if login() && (isPembina() || resource.data.userId == uid());
+      // `resource == null` untuk dokumen yang belum ada. Tanpa cabang ini
+      // pembacaannya berujung galat penilaian, bukan "tidak ditemukan" —
+      // dan peserta yang belum pernah absen tertahan di layar memuat.
+      allow get: if login() && (isPembina() || resource == null || resource.data.userId == uid());
+      allow list: if login() && (isPembina() || resource.data.userId == uid());
       allow write: if false;
     }
 
@@ -70,12 +74,13 @@ service cloud.firestore {
     // Penulisan hanya lewat API route agar persetujuan sekaligus mencatat
     // absensi — yang tidak boleh disentuh client.
     match /izin/{izinId} {
-      allow get, list: if login() && (isPembina() || resource.data.userId == uid());
+      allow get: if login() && (isPembina() || resource == null || resource.data.userId == uid());
+      allow list: if login() && (isPembina() || resource.data.userId == uid());
       allow write: if false;
     }
 
     // ---------- config ----------
-    // Jam kerja, toleransi, ambang wajah, titik & radius kantor.
+    // Jam kerja, toleransi, titik & radius kantor.
     match /config/{docId} {
       allow read: if login();
       allow write: if isAdmin();

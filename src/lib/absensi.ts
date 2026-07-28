@@ -76,10 +76,28 @@ export interface Absensi {
   jarakKantorPulang?: number;
 }
 
+/**
+ * Absensi seorang peserta hari ini.
+ *
+ * Sengaja memakai query, bukan `getDoc` langsung ke `absensi/{uid}_{tanggal}`.
+ * Rules menyaring dokumen absensi lewat `resource.data.userId`, dan pada
+ * dokumen yang belum ada `resource` bernilai null — pembacaannya bukan
+ * mengembalikan "tidak ada", melainkan ditolak. Peserta yang belum pernah
+ * absen sama sekali jadi tidak bisa membuka dashboardnya.
+ *
+ * Pada query, rules dinilai per dokumen yang benar-benar terambil, sehingga
+ * hasil kosong aman.
+ */
 export async function absensiHariIni(uid: string): Promise<Absensi | null> {
-  const id = `${uid}_${tanggalHariIni()}`;
-  const snap = await getDoc(doc(db, "absensi", id));
-  return snap.exists() ? ({ id, ...(snap.data() as any) }) : null;
+  const q = query(
+    collection(db, "absensi"),
+    where("userId", "==", uid),
+    where("tanggal", "==", tanggalHariIni()),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  const d = snap.docs[0];
+  return d ? ({ id: d.id, ...(d.data() as any) }) : null;
 }
 
 // Riwayat absensi milik user (tanpa orderBy agar tak butuh composite index)

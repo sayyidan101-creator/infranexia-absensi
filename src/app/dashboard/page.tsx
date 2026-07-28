@@ -6,7 +6,7 @@ import Avatar from "@/components/Avatar";
 import CincinProgres from "@/components/CincinProgres";
 import Kalender, { NavigasiBulan, BULAN } from "@/components/Kalender";
 import { useAuth } from "@/context/AuthContext";
-import { CountUp, SkeletonKartu, Skeleton, Kosong, Segmen } from "@/components/ui";
+import { CountUp, SkeletonKartu, Skeleton, Kosong, Segmen, Pesan } from "@/components/ui";
 import { gaya, terhitungHadir } from "@/lib/status";
 import { semuaIzin, Izin } from "@/lib/izin";
 import {
@@ -32,6 +32,22 @@ const tglPendek = (s: string) => {
   const d = new Date(s + "T00:00:00");
   return isNaN(d.getTime()) ? s : d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
 };
+
+/**
+ * Kegagalan memuat dijadikan pesan yang bisa dibaca, bukan dibiarkan menggantung.
+ * Sebelumnya satu permintaan yang gagal membuat `setLoading(false)` tak pernah
+ * dijalankan, dan halaman berhenti selamanya di kerangka abu-abu.
+ */
+function pesanMuat(e: any): string {
+  const s = String(e?.code || e?.message || e);
+  if (/permission-denied|insufficient/i.test(s))
+    return "Data kehadiranmu tidak bisa dibaca. Aturan keamanan Firestore perlu diperbarui — beri tahu admin.";
+  if (/index/i.test(s))
+    return "Firestore masih menyiapkan indeks untuk penyaringan tanggal. Coba lagi beberapa menit lagi.";
+  if (/offline|unavailable|network/i.test(s))
+    return "Tidak bisa terhubung ke server. Periksa koneksimu lalu muat ulang.";
+  return e?.message || "Gagal memuat data.";
+}
 
 const salam = () => {
   const h = new Date().getHours();
@@ -431,11 +447,14 @@ function DashPembina({ nama }: { nama: string }) {
   const [aktivitas, setAktivitas] = useState<any[]>([]);
   const [izin, setIzin] = useState<Izin[]>([]);
   const [loading, setLoading] = useState(true);
+  const [galat, setGalat] = useState("");
   const [langsung, setLangsung] = useState(false);
   const [tapis, setTapis] = useState<TapisPeserta>("semua");
 
   const muat = async () => {
     setLoading(true);
+    setGalat("");
+    try {
     const hari = last7();
     const [detail, sejak, daftarIzin] = await Promise.all([
       petaUserDetail(),
@@ -469,7 +488,11 @@ function DashPembina({ nama }: { nama: string }) {
     });
     ev.sort((x, y) => y.sort - x.sort);
     setAktivitas(ev.slice(0, 6));
-    setLoading(false);
+    } catch (e: any) {
+      setGalat(pesanMuat(e));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { muat(); }, []);
 
@@ -528,6 +551,8 @@ function DashPembina({ nama }: { nama: string }) {
           Perbarui
         </button>
       </div>
+
+      {galat && <Pesan tipe="err">{galat}</Pesan>}
 
       {/* Ikhtisar hari ini */}
       {loading ? <Skeleton className="h-44 w-full rounded-2xl" /> : (
@@ -699,28 +724,39 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
   const [tahun, setTahun] = useState(kini.getFullYear());
   const [bulan, setBulan] = useState(kini.getMonth() + 1);
   const [loading, setLoading] = useState(true);
+  const [galat, setGalat] = useState("");
 
   useEffect(() => {
     let batal = false;
     (async () => {
       setLoading(true);
-      const { dari, sampai } = batasBulan(tahun, bulan);
-      const [hariIni, sebulan] = await Promise.all([
-        absensiHariIni(uid),
-        riwayatRentang(uid, dari, sampai),
-      ]);
-      if (batal) return;
-      setAbsen(hariIni);
-      setBulanan(sebulan);
+      setGalat("");
+      try {
+        const { dari, sampai } = batasBulan(tahun, bulan);
+        const [hariIni, sebulan] = await Promise.all([
+          absensiHariIni(uid),
+          riwayatRentang(uid, dari, sampai),
+        ]);
+        if (batal) return;
+        setAbsen(hariIni);
+        setBulanan(sebulan);
 
-      const ev: any[] = [];
-      sebulan.forEach((a) => {
-        if (a.jamMasuk) ev.push({ nama, teks: a.status === "terlambat" ? "masuk (terlambat)" : "masuk", waktu: `${tglPendek(a.tanggal)} ${jam(a.jamMasuk)}`, sort: a.jamMasuk.toDate?.().getTime() || 0, warna: a.status === "terlambat" ? "text-amber-600" : "text-emerald-600" });
-        if (a.jamPulang) ev.push({ nama, teks: "pulang", waktu: `${tglPendek(a.tanggal)} ${jam(a.jamPulang)}`, sort: a.jamPulang.toDate?.().getTime() || 0, warna: "text-navy-700" });
-      });
-      ev.sort((x, y) => y.sort - x.sort);
-      setAktivitas(ev.slice(0, 6));
-      setLoading(false);
+        const ev: any[] = [];
+        sebulan.forEach((a) => {
+          if (a.jamMasuk) ev.push({ nama, teks: a.status === "terlambat" ? "masuk (terlambat)" : "masuk", waktu: `${tglPendek(a.tanggal)} ${jam(a.jamMasuk)}`, sort: a.jamMasuk.toDate?.().getTime() || 0, warna: a.status === "terlambat" ? "text-amber-600" : "text-emerald-600" });
+          if (a.jamPulang) ev.push({ nama, teks: "pulang", waktu: `${tglPendek(a.tanggal)} ${jam(a.jamPulang)}`, sort: a.jamPulang.toDate?.().getTime() || 0, warna: "text-navy-700" });
+        });
+        ev.sort((x, y) => y.sort - x.sort);
+        setAktivitas(ev.slice(0, 6));
+      } catch (e: any) {
+        if (!batal) {
+          setGalat(pesanMuat(e));
+          setBulanan([]);
+          setAktivitas([]);
+        }
+      } finally {
+        if (!batal) setLoading(false);
+      }
     })();
     return () => { batal = true; };
   }, [uid, nama, tahun, bulan]);
@@ -768,6 +804,8 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
         <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {nama.split(" ")[0]}</h1>
         <p className="text-sm text-gray-500">Semoga harimu produktif hari ini.</p>
       </div>
+
+      {galat && <Pesan tipe="err">{galat}</Pesan>}
 
       {/* Status hari ini */}
       <div className={`relative overflow-hidden rounded-2xl p-5 flex items-center gap-4 anim-fade-up d-1 ${
