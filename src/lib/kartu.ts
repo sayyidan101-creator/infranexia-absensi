@@ -11,10 +11,18 @@ export interface HasilAbsenKartu {
   diulang: boolean;
 }
 
-/** Daftarkan sebuah kartu ke peserta (admin). */
-export async function daftarkanKartu(uid: string, serial: string): Promise<string> {
-  const r = await panggilApi<{ label: string }>("/api/kartu", { aksi: "daftar", uid, serial });
-  return r.label;
+export interface KartuCetak {
+  uid: string;
+  kode: string;
+  nama: string;
+  nim?: string;
+  jurusan?: string;
+  kampus?: string;
+}
+
+/** Terbitkan kartu QR baru untuk peserta (admin). Kartu lamanya langsung mati. */
+export async function terbitkanKartu(uid: string): Promise<{ kode: string; label: string }> {
+  return panggilApi<{ kode: string; label: string }>("/api/kartu", { aksi: "terbitkan", uid });
 }
 
 /** Cabut kartu dari peserta (admin). */
@@ -22,18 +30,26 @@ export async function cabutKartu(uid: string): Promise<void> {
   await panggilApi("/api/kartu", { aksi: "cabut", uid });
 }
 
-/** Catat absensi dari kartu yang ditempelkan di kios. */
+/** Ambil kode kartu untuk dicetak. Tanpa `uids`, seluruh kartu yang aktif. */
+export async function ambilKartuCetak(uids?: string[]): Promise<KartuCetak[]> {
+  const r = await panggilApi<{ kartu: KartuCetak[] }>("/api/kartu", {
+    aksi: "cetak", uids: uids ?? [],
+  });
+  return r.kartu;
+}
+
+/** Catat absensi dari kartu yang dipindai di kios. */
 export async function absenDenganKartu(
-  serial: string,
+  kode: string,
   lat?: number | null,
   lng?: number | null
 ): Promise<HasilAbsenKartu> {
   return panggilApi<HasilAbsenKartu>("/api/kartu", {
-    aksi: "absen", serial, lat: lat ?? null, lng: lng ?? null,
+    aksi: "absen", kode, lat: lat ?? null, lng: lng ?? null,
   });
 }
 
-/** Catat absensi manual bila kartu atau NFC bermasalah. */
+/** Catat absensi manual bila kartunya tertinggal. */
 export async function absenManual(
   uid: string,
   lat?: number | null,
@@ -42,4 +58,10 @@ export async function absenManual(
   return panggilApi<HasilAbsenKartu>("/api/kartu", {
     aksi: "manual", uid, lat: lat ?? null, lng: lng ?? null,
   });
+}
+
+/** Bentuk yang dicetak di kartu: `ABCD-EFGH-JKMN`. */
+export function formatKode(kode: string): string {
+  const bersih = String(kode || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return bersih.match(/.{1,4}/g)?.join("-") || bersih;
 }

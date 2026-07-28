@@ -2,7 +2,7 @@
 //
 // Catatan keamanan: dokumen `absensi` TIDAK BOLEH ditulis dari browser
 // (dikunci Firestore Rules). Pencatatan dilakukan lewat API route saat kartu
-// ditempelkan di perangkat kios, sehingga jam, status, dan validasi lokasi
+// dipindai di perangkat kios, sehingga jam, status, dan validasi lokasi
 // seluruhnya ditentukan server.
 import {
   doc, getDoc, setDoc, collection, query, where, orderBy, limit,

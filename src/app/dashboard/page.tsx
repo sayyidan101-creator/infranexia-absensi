@@ -445,13 +445,13 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
     ? {
         nada: "navy" as const,
         judul: "Belum absen masuk",
-        pesan: "Tempelkan kartumu di mesin absen kantor saat tiba.",
+        pesan: "Pindai kartumu di mesin absen kantor saat tiba.",
       }
     : !sudahPulang
     ? {
         nada: "navy" as const,
         judul: `Masuk pukul ${jam(absen?.jamMasuk)}`,
-        pesan: "Jangan lupa tempelkan kartu lagi sebelum pulang.",
+        pesan: "Jangan lupa pindai kartu lagi sebelum pulang.",
       }
     : {
         nada: "emerald" as const,

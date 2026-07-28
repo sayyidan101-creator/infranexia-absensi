@@ -13,6 +13,9 @@ import KesehatanData from "@/components/KesehatanData";
 import Sheet from "@/components/Sheet";
 import DaftarKartu from "@/components/DaftarKartu";
 import { CountUp, Skeleton, Kosong, Pesan } from "@/components/ui";
+import { ambilKartuCetak } from "@/lib/kartu";
+import { lembarKartuHtml } from "@/lib/kartuCetak";
+import { cetakHtml } from "@/lib/ekspor";
 
 interface U {
   id: string; name: string; email: string; role: string;
@@ -58,6 +61,7 @@ function AdminInner() {
   const [pesan, setPesan] = useState<{ t: "ok" | "err"; s: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [konfirmHapus, setKonfirmHapus] = useState<U | null>(null);
+  const [cetakSibuk, setCetakSibuk] = useState(false);
   const [kartuUntuk, setKartuUntuk] = useState<U | null>(null);
 
   const load = async () => {
@@ -157,6 +161,22 @@ function AdminInner() {
     setKonfirmHapus(u);
   };
 
+  /** Satu lembar A4 berisi seluruh kartu yang aktif — untuk cetak massal di awal periode. */
+  const cetakSemuaKartu = async () => {
+    setCetakSibuk(true);
+    setPesan(null);
+    try {
+      const daftar = await ambilKartuCetak();
+      if (daftar.length === 0) {
+        setPesan({ t: "err", s: "Belum ada kartu yang diterbitkan. Terbitkan lewat tombol Kartu di baris peserta." });
+        return;
+      }
+      cetakHtml("Kartu Absen", await lembarKartuHtml(daftar));
+    } catch (e: any) {
+      setPesan({ t: "err", s: pesanError(e) });
+    } finally { setCetakSibuk(false); }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
@@ -167,16 +187,26 @@ function AdminInner() {
           <p className="text-sm text-gray-500 mt-1 max-w-xl">Manajemen terpusat peserta magang, dari onboarding hingga evaluasi akhir.</p>
         </div>
         {bisaKelola && (
-          <button onClick={bukaCreate} className="hidden md:inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-navy-900 text-white text-sm font-semibold press hover:bg-navy-800 shrink-0">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-            Tambah Magang Baru
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={cetakSemuaKartu} disabled={cetakSibuk}
+              className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-navy-900 press disabled:opacity-50">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <path d="M6 14h12v8H6z" />
+              </svg>
+              {cetakSibuk ? "Menyiapkan..." : "Cetak Kartu"}
+            </button>
+            <button onClick={bukaCreate} className="hidden md:inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-navy-900 text-white text-sm font-semibold press hover:bg-navy-800">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+              Tambah Magang Baru
+            </button>
+          </div>
         )}
       </div>
 
       {pesan && !modal && <Pesan tipe={pesan.t}>{pesan.s}</Pesan>}
 
-      {/* Pengaturan jam kerja, ketelitian wajah, & geofencing */}
+      {/* Pengaturan jam kerja & geofencing */}
       {bisaKelola && <PengaturanAbsensi />}
 
       {/* Pemeriksaan keselarasan akun & profil */}
@@ -449,7 +479,7 @@ function AdminInner() {
         )}
       </Sheet>
 
-      {/* ===== Pendaftaran kartu NFC ===== */}
+      {/* ===== Penerbitan kartu absen ===== */}
       <DaftarKartu
         peserta={kartuUntuk}
         buka={!!kartuUntuk}
@@ -484,7 +514,7 @@ function AdminInner() {
           </span>
           <p className="font-semibold text-navy-900 mt-3">Hapus {konfirmHapus?.name}?</p>
           <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
-            Akun login, profil, data wajah, dan seluruh riwayat absensinya akan dihapus permanen.
+            Akun login, profil, kartu absen, dan seluruh riwayat absensinya akan dihapus permanen.
             Tindakan ini tidak bisa dibatalkan.
           </p>
         </div>

@@ -5,18 +5,18 @@ import {
   KesalahanAbsen, pastikanLogin, pastikanAdmin, ambilKonfigurasiServer,
   waktuLokal, keMenit, jarakMeter,
 } from "@/server/absensi";
-import { hashSerial, labelAman, serialValid } from "@/server/kartu";
+import { buatKode, hashKode, kodeValid, labelAman, normalkanKode } from "@/server/kartu";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Ketukan berulang dalam jendela ini dianggap satu kali. */
+/** Pindaian berulang dalam jendela ini dianggap satu kali. */
 const DETIK_ANTI_GANDA = 20;
 
 /**
- * Kartu magang.
+ * Kartu magang ber-QR.
  *
- * body.aksi = "daftar" | "cabut" | "absen" | "manual"
+ * body.aksi = "terbitkan" | "cabut" | "cetak" | "absen" | "manual"
  *
  * Pencatatan lewat "absen" hanya boleh dilakukan admin atau pembimbing —
  * yaitu perangkat kios di kantor. Peserta tidak bisa memanggilnya dari
@@ -26,8 +26,9 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
 
-    if (body?.aksi === "daftar") return await daftar(req, body);
+    if (body?.aksi === "terbitkan") return await terbitkan(req, body);
     if (body?.aksi === "cabut") return await cabut(req, body);
+    if (body?.aksi === "cetak") return await cetak(req, body);
     if (body?.aksi === "absen") return await absenKartu(req, body);
     if (body?.aksi === "manual") return await absenManual(req, body);
 
@@ -60,52 +61,53 @@ async function pastikanPembina(req: Request): Promise<{ uid: string; nama: strin
   return { uid, nama: data.name || "" };
 }
 
-// ---------- Daftarkan kartu ke peserta ----------
-async function daftar(req: Request, d: any) {
+// ---------- Terbitkan kartu QR untuk peserta ----------
+async function terbitkan(req: Request, d: any) {
   await pastikanAdmin(req);
 
   const target = String(d?.uid || "");
-  const serial = String(d?.serial || "");
   if (!target) throw new KesalahanAbsen("Peserta belum dipilih.");
-  if (!serialValid(serial)) throw new KesalahanAbsen("Nomor seri kartu tidak valid.");
-
-  const hash = hashSerial(serial);
 
   const userSnap = await adminDb().doc(`users/${target}`).get();
   if (!userSnap.exists) throw new KesalahanAbsen("Peserta tidak ditemukan.", 404);
 
-  // Satu kartu hanya boleh dimiliki satu orang
-  const kartuRef = adminDb().doc(`kartu/${hash}`);
-  const adaKartu = await kartuRef.get();
-  if (adaKartu.exists && (adaKartu.data() as any).userId !== target) {
-    const pemilik = await adminDb().doc(`users/${(adaKartu.data() as any).userId}`).get();
-    throw new KesalahanAbsen(
-      `Kartu ini sudah terdaftar atas nama ${
-        pemilik.exists ? (pemilik.data() as any).name : "peserta lain"
-      }. Cabut dulu dari sana.`,
-      409
-    );
+  const user = userSnap.data() as any;
+  if (user.role !== "magang") {
+    throw new KesalahanAbsen("Kartu absen hanya untuk peserta magang.", 400);
   }
 
-  // Lepas kartu lama milik peserta ini, satu orang satu kartu
+  // Kode dibuat ulang sampai dapat yang belum terpakai. Peluang tabrakan
+  // sangat kecil, tapi menabrak kartu orang lain akibatnya fatal.
+  let kode = "";
+  let ref = adminDb().doc("kartu/x");
+  for (let coba = 0; coba < 5; coba++) {
+    kode = buatKode();
+    ref = adminDb().doc(`kartu/${hashKode(kode)}`);
+    if (!(await ref.get()).exists) break;
+    kode = "";
+  }
+  if (!kode) throw new KesalahanAbsen("Gagal menerbitkan kode kartu. Coba lagi.", 500);
+
+  // Satu orang satu kartu — yang lama langsung tidak berlaku
   await lepasKartuLama(target);
 
-  await kartuRef.set({
+  await ref.set({
     userId: target,
-    label: labelAman(serial),
+    kode,
+    label: labelAman(kode),
     dibuatPada: FieldValue.serverTimestamp(),
   });
 
   await adminDb().doc(`users/${target}`).set(
     {
-      kartuLabel: labelAman(serial),
+      kartuLabel: labelAman(kode),
       kartuTerdaftar: true,
       kartuDidaftarkanPada: FieldValue.serverTimestamp(),
     },
     { merge: true }
   );
 
-  return NextResponse.json({ ok: true, label: labelAman(serial) });
+  return NextResponse.json({ ok: true, kode, label: labelAman(kode) });
 }
 
 // ---------- Cabut kartu ----------
@@ -123,15 +125,60 @@ async function cabut(req: Request, d: any) {
   return NextResponse.json({ ok: true });
 }
 
-// ---------- Absen dengan menempelkan kartu ----------
+// ---------- Ambil kode untuk dicetak ----------
+/**
+ * Kode aslinya disimpan supaya kartu yang rusak atau hilang bisa dicetak
+ * ulang tanpa menerbitkan kode baru — kalau harus terbit ulang, kartu lama
+ * yang mungkin masih dipegang peserta jadi mati percuma.
+ */
+async function cetak(req: Request, d: any) {
+  await pastikanAdmin(req);
+
+  const diminta: string[] = Array.isArray(d?.uids) ? d.uids.map(String) : [];
+  const semua = diminta.length === 0;
+
+  const snap = await adminDb().collection("kartu").get();
+  const kartu = snap.docs
+    .map((x) => x.data() as any)
+    .filter((k) => semua || diminta.includes(String(k.userId)));
+
+  if (kartu.length === 0) return NextResponse.json({ kartu: [] });
+
+  const orang = await adminDb().getAll(
+    ...kartu.map((k) => adminDb().doc(`users/${k.userId}`))
+  );
+  const peta = new Map(orang.filter((o) => o.exists).map((o) => [o.id, o.data() as any]));
+
+  const hasil = kartu
+    .filter((k) => peta.has(String(k.userId)))
+    .map((k) => {
+      const u = peta.get(String(k.userId))!;
+      return {
+        uid: String(k.userId),
+        kode: String(k.kode || ""),
+        nama: u.name || "",
+        nim: u.nim || "",
+        jurusan: u.jurusan || "",
+        kampus: u.kampus || "",
+      };
+    })
+    .filter((x) => x.kode)
+    .sort((a, b) => a.nama.localeCompare(b.nama));
+
+  return NextResponse.json({ kartu: hasil });
+}
+
+// ---------- Absen dengan memindai kartu ----------
 async function absenKartu(req: Request, d: any) {
   const pembina = await pastikanPembina(req);
-  const serial = String(d?.serial || "");
-  if (!serialValid(serial)) throw new KesalahanAbsen("Nomor seri kartu tidak valid.");
+  const kode = normalkanKode(d?.kode);
+  if (!kodeValid(kode)) {
+    throw new KesalahanAbsen("Ini bukan kartu absen InfraNexia.", 400);
+  }
 
-  const kartuSnap = await adminDb().doc(`kartu/${hashSerial(serial)}`).get();
+  const kartuSnap = await adminDb().doc(`kartu/${hashKode(kode)}`).get();
   if (!kartuSnap.exists) {
-    throw new KesalahanAbsen("Kartu belum terdaftar. Daftarkan dulu lewat menu Kelola.", 404);
+    throw new KesalahanAbsen("Kartu ini sudah tidak berlaku. Terbitkan kartu baru lewat menu Kelola.", 404);
   }
 
   const pemilik = String((kartuSnap.data() as any).userId || "");
@@ -143,7 +190,7 @@ async function absenKartu(req: Request, d: any) {
   return await catat(pemilik, userSnap.data() as any, d, pembina, "kartu");
 }
 
-// ---------- Pencatatan manual (cadangan bila NFC bermasalah) ----------
+// ---------- Pencatatan manual (cadangan bila kartu tertinggal) ----------
 async function absenManual(req: Request, d: any) {
   const pembina = await pastikanPembina(req);
   const target = String(d?.uid || "");
