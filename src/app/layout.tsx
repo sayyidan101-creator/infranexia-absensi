@@ -5,7 +5,7 @@ import PWARegister from "@/components/PWARegister";
 
 export const metadata: Metadata = {
   title: "InfraNexia — Absensi Magang",
-  description: "Absensi anak magang berbasis pengenalan wajah",
+  description: "Absensi peserta magang dengan kartu QR",
   manifest: "/manifest.json",
   applicationName: "InfraNexia",
   appleWebApp: {

@@ -1,12 +1,16 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Protected from "@/components/Protected";
 import Avatar from "@/components/Avatar";
+import CincinProgres from "@/components/CincinProgres";
+import Kalender, { NavigasiBulan, BULAN } from "@/components/Kalender";
 import { useAuth } from "@/context/AuthContext";
-import { CountUp, SkeletonKartu, Skeleton, Kosong } from "@/components/ui";
+import { CountUp, SkeletonKartu, Skeleton, Kosong, Segmen } from "@/components/ui";
+import { gaya, terhitungHadir } from "@/lib/status";
+import { semuaIzin, Izin } from "@/lib/izin";
 import {
-  absensiHariIni, absensiSejak, riwayatAbsensi,
+  absensiHariIni, absensiSejak, riwayatRentang, batasBulan, hitungRekap,
   petaUserDetail, pantauAbsensiHariIni, tanggalHariIni, Absensi,
 } from "@/lib/absensi";
 
@@ -23,6 +27,11 @@ function last7() {
   return out;
 }
 const jam = (t?: any) => (t?.toDate ? t.toDate().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-");
+
+const tglPendek = (s: string) => {
+  const d = new Date(s + "T00:00:00");
+  return isNaN(d.getTime()) ? s : d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+};
 
 const salam = () => {
   const h = new Date().getHours();
@@ -404,60 +413,353 @@ function DashAdmin({ nama }: { nama: string }) {
   );
 }
 
-// ================= DASHBOARD MAGANG =================
-function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; punyaKartu: boolean }) {
-  const [absen, setAbsen] = useState<Absensi | null>(null);
+type TapisPeserta = "semua" | "belum" | "telat";
+
+// ================= DASHBOARD PEMBIMBING =================
+/**
+ * Pembimbing memakai halaman sendiri, bukan halaman admin.
+ *
+ * Yang mereka butuhkan berbeda: bukan mengelola akun, tapi tahu siapa yang
+ * belum datang pagi ini dan pengajuan izin mana yang menunggu tanda tangan
+ * mereka. Menampilkan menu pengelolaan akun yang tidak bisa mereka pakai
+ * hanya menambah kebisingan.
+ */
+function DashPembina({ nama }: { nama: string }) {
+  const [orang, setOrang] = useState<any[]>([]);
+  const [today, setToday] = useState<Absensi[]>([]);
   const [chart, setChart] = useState<any[]>([]);
   const [aktivitas, setAktivitas] = useState<any[]>([]);
-  const [mode, setMode] = useState<"bar" | "line">("bar");
+  const [izin, setIzin] = useState<Izin[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [langsung, setLangsung] = useState(false);
+  const [tapis, setTapis] = useState<TapisPeserta>("semua");
+
+  const muat = async () => {
+    setLoading(true);
+    const hari = last7();
+    const [detail, sejak, daftarIzin] = await Promise.all([
+      petaUserDetail(),
+      absensiSejak(hari[0].tgl),
+      semuaIzin().catch(() => [] as Izin[]),
+    ]);
+
+    const magang = Object.entries(detail)
+      .map(([id, d]: any) => ({ id, ...d }))
+      .filter((u) => u.role === "magang" && (u.status || "aktif") === "aktif")
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    setOrang(magang);
+    setIzin(daftarIzin);
+    setToday(sejak.filter((a) => a.tanggal === tanggalHariIni()));
+
+    setChart(hari.map((h) => {
+      const rec = sejak.filter((a) => a.tanggal === h.tgl);
+      return {
+        label: h.label,
+        hadir: rec.filter((a) => a.status === "hadir").length,
+        telat: rec.filter((a) => a.status === "terlambat").length,
+      };
+    }));
+
+    const ev: any[] = [];
+    sejak.forEach((a) => {
+      const u = detail[a.userId] || {};
+      const nm = u.name || "Pengguna";
+      if (a.jamMasuk) ev.push({ nama: nm, foto: u.foto, teks: a.status === "terlambat" ? "absen masuk (terlambat)" : "absen masuk", waktu: jam(a.jamMasuk), sort: a.jamMasuk.toDate?.().getTime() || 0, warna: a.status === "terlambat" ? "text-amber-600" : "text-emerald-600" });
+      if (a.jamPulang) ev.push({ nama: nm, foto: u.foto, teks: "absen pulang", waktu: jam(a.jamPulang), sort: a.jamPulang.toDate?.().getTime() || 0, warna: "text-navy-700" });
+    });
+    ev.sort((x, y) => y.sort - x.sort);
+    setAktivitas(ev.slice(0, 6));
+    setLoading(false);
+  };
+  useEffect(() => { muat(); }, []);
+
+  // Angka ikut berubah sendiri saat ada yang absen di kios
+  useEffect(() => {
+    if (orang.length === 0) return;
+    const berhenti = pantauAbsensiHariIni(
+      (data) => { setToday(data); setLangsung(true); },
+      () => setLangsung(false)
+    );
+    return () => berhenti();
+  }, [orang]);
+
+  const petaHariIni = useMemo(() => {
+    const m = new Map<string, Absensi>();
+    today.forEach((a) => m.set(a.userId, a));
+    return m;
+  }, [today]);
+
+  const hadir = today.filter((a) => a.status === "hadir").length;
+  const telat = today.filter((a) => a.status === "terlambat").length;
+  const total = orang.length;
+  const belum = Math.max(0, total - hadir - telat);
+  const persen = total ? Math.round(((hadir + telat) / total) * 100) : 0;
+  const menunggu = izin.filter((i) => i.status === "menunggu");
+
+  const daftar = orang.filter((u) => {
+    const a = petaHariIni.get(u.id);
+    if (tapis === "belum") return !a;
+    if (tapis === "telat") return a?.status === "terlambat";
+    return true;
+  });
+
+  return (
+    <div className="space-y-5 md:space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 anim-fade-up">
+        <div>
+          <Clock />
+          <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {nama.split(" ")[0]}</h1>
+          <p className="text-sm text-gray-500 mt-0.5 inline-flex items-center gap-1.5">
+            Peserta bimbinganmu hari ini
+            {langsung && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                langsung
+              </span>
+            )}
+          </p>
+        </div>
+        <button onClick={muat} disabled={loading}
+          className="self-start inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs font-medium text-navy-900 press hover:bg-gray-50 disabled:opacity-50">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={loading ? "animate-spin" : ""}>
+            <path d="M21 12a9 9 0 1 1-6.22-8.56" /><path d="M21 3v6h-6" />
+          </svg>
+          Perbarui
+        </button>
+      </div>
+
+      {/* Ikhtisar hari ini */}
+      {loading ? <Skeleton className="h-44 w-full rounded-2xl" /> : (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700 text-white p-5 sm:p-6 anim-fade-up d-1 shadow-lift">
+          <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-white/5 anim-float" />
+          <div className="relative flex items-center gap-5">
+            <CincinProgres nilai={persen} ukuran={104} label="hadir" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs uppercase tracking-widest text-slate-300">Kehadiran hari ini</p>
+              <p className="text-2xl font-bold mt-1 tabular-nums leading-none">
+                {hadir + telat} <span className="text-base font-medium text-slate-300">dari {total} peserta</span>
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-slate-300">
+                <span className="inline-flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-emerald-400" />Tepat waktu <b className="text-white tabular-nums">{hadir}</b></span>
+                <span className="inline-flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-amber-400" />Terlambat <b className="text-white tabular-nums">{telat}</b></span>
+                <span className="inline-flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-white/30" />Belum <b className="text-white tabular-nums">{belum}</b></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yang perlu ditindaklanjuti */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <KartuTindakan
+          href="/izin"
+          nada={menunggu.length > 0 ? "amber" : "netral"}
+          angka={menunggu.length}
+          judul="Izin menunggu persetujuan"
+          pesan={menunggu.length > 0
+            ? `Dari ${new Set(menunggu.map((i) => i.userId)).size} peserta. Buka untuk meninjau.`
+            : "Tidak ada pengajuan yang tertahan."}
+          delay="d-2"
+          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M9 15h6M9 11h3" /></svg>}
+        />
+        <KartuTindakan
+          href="/kios"
+          nada={belum > 0 ? "navy" : "netral"}
+          angka={belum}
+          judul="Belum absen hari ini"
+          pesan={belum > 0
+            ? "Buka mesin absen bila ada yang kartunya bermasalah."
+            : "Semua peserta sudah tercatat hari ini."}
+          delay="d-3"
+          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><path d="M14 14h3v3h-3zM20 20h1" /></svg>}
+        />
+      </div>
+
+      {/* Daftar peserta hari ini */}
+      <div className="card p-4 sm:p-6 anim-fade-up d-4">
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-navy-900">Peserta Hari Ini</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Ketuk nama untuk membuka rekap kehadirannya.</p>
+          </div>
+          <Segmen<TapisPeserta>
+            nilai={tapis}
+            ubah={setTapis}
+            kecil
+            opsi={[
+              { nilai: "semua", label: "Semua" },
+              { nilai: "belum", label: "Belum absen", lencana: belum },
+              { nilai: "telat", label: "Terlambat", lencana: telat },
+            ]}
+          />
+        </div>
+
+        {loading ? (
+          <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+        ) : daftar.length === 0 ? (
+          <Kosong
+            judul={tapis === "belum" ? "Semua sudah absen" : tapis === "telat" ? "Tidak ada yang terlambat" : "Belum ada peserta"}
+            pesan={tapis === "semua" ? "Peserta magang aktif akan muncul di sini." : "Bagus — tidak ada yang perlu ditindaklanjuti."}
+          />
+        ) : (
+          <ul className="divide-y divide-gray-100 -mx-1">
+            {daftar.map((u, i) => {
+              const a = petaHariIni.get(u.id);
+              const g = a ? gaya(a.status) : null;
+              return (
+                <li key={u.id} className="anim-fade-up" style={{ animationDelay: `${Math.min(i, 10) * 35}ms` }}>
+                  <Link href={`/peserta/${u.id}`} className="flex items-center gap-3 py-2.5 px-1 rounded-xl press">
+                    <Avatar name={u.name} foto={u.foto} size={38} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-navy-900 truncate">{u.name}</p>
+                      <p className="text-[11px] text-gray-400 truncate">
+                        {a?.jamMasuk ? `Masuk ${jam(a.jamMasuk)}` : u.jurusan || u.kampus || "—"}
+                        {a?.jamPulang ? ` · Pulang ${jam(a.jamPulang)}` : ""}
+                      </p>
+                    </div>
+                    {g ? (
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${g.lencana}`}>{g.pendek}</span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-1 rounded-full shrink-0 bg-gray-100 text-gray-500">BELUM</span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Tren + aktivitas */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="lg:col-span-2 card p-4 sm:p-6 anim-fade-up d-5">
+          <div className="mb-5">
+            <h2 className="font-semibold text-navy-900">Tren Kehadiran</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Sepekan terakhir, seluruh peserta.</p>
+          </div>
+          {loading ? <Skeleton className="h-40 sm:h-44 w-full" /> : <Chart data={chart} mode="bar" />}
+        </div>
+        <div className="card p-4 sm:p-6 anim-fade-up d-6">
+          <h2 className="font-semibold text-navy-900 mb-3">Aktivitas Terbaru</h2>
+          {loading ? <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-11 w-full" />)}</div>
+            : <Activity items={aktivitas} />}
+        </div>
+      </div>
+
+      <p className="text-center text-[10px] sm:text-xs text-gray-400 tracking-widest uppercase">InfraNexia Systems &copy; {new Date().getFullYear()}</p>
+    </div>
+  );
+}
+
+/** Kartu ringkas berisi satu hal yang perlu ditindaklanjuti. */
+function KartuTindakan({
+  href, nada, angka, judul, pesan, icon, delay = "",
+}: {
+  href: string;
+  nada: "amber" | "navy" | "netral";
+  angka: number;
+  judul: string;
+  pesan: string;
+  icon: React.ReactNode;
+  delay?: string;
+}) {
+  const gayaKartu =
+    nada === "amber" ? "bg-amber-50 border-amber-200"
+      : nada === "navy" ? "bg-white border-gray-100"
+      : "bg-white border-gray-100";
+  const gayaIkon =
+    nada === "amber" ? "bg-amber-500 text-white"
+      : nada === "navy" ? "bg-navy-900 text-white"
+      : "bg-emerald-50 text-emerald-600";
+
+  return (
+    <Link href={href}
+      className={`group flex items-center gap-4 rounded-2xl border p-4 sm:p-5 press anim-fade-up ${delay} ${gayaKartu} transition-shadow md:hover:shadow-lift`}>
+      <span className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${gayaIkon}`}>{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-bold text-navy-900 tabular-nums leading-none"><CountUp value={angka} /></span>
+          <p className="text-sm font-semibold text-navy-900 truncate">{judul}</p>
+        </div>
+        <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">{pesan}</p>
+      </div>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        className="text-gray-300 shrink-0 transition-transform group-hover:translate-x-0.5"><path d="m9 18 6-6-6-6" /></svg>
+    </Link>
+  );
+}
+
+// ================= DASHBOARD MAGANG =================
+function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; punyaKartu: boolean }) {
+  const kini = new Date();
+  const [absen, setAbsen] = useState<Absensi | null>(null);
+  const [bulanan, setBulanan] = useState<Absensi[]>([]);
+  const [aktivitas, setAktivitas] = useState<any[]>([]);
+  const [tahun, setTahun] = useState(kini.getFullYear());
+  const [bulan, setBulan] = useState(kini.getMonth() + 1);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let batal = false;
     (async () => {
-      setAbsen(await absensiHariIni(uid));
-      const riw = await riwayatAbsensi(uid);
-      const hari = last7();
-      setChart(hari.map((h) => {
-        const rec = riw.filter((a) => a.tanggal === h.tgl);
-        return { label: h.label, hadir: rec.filter((a) => a.status === "hadir").length, telat: rec.filter((a) => a.status === "terlambat").length };
-      }));
+      setLoading(true);
+      const { dari, sampai } = batasBulan(tahun, bulan);
+      const [hariIni, sebulan] = await Promise.all([
+        absensiHariIni(uid),
+        riwayatRentang(uid, dari, sampai),
+      ]);
+      if (batal) return;
+      setAbsen(hariIni);
+      setBulanan(sebulan);
+
       const ev: any[] = [];
-      riw.forEach((a) => {
-        if (a.jamMasuk) ev.push({ nama, teks: a.status === "terlambat" ? "masuk (terlambat)" : "masuk", waktu: `${a.tanggal} ${jam(a.jamMasuk)}`, sort: a.jamMasuk.toDate?.().getTime() || 0, warna: a.status === "terlambat" ? "text-amber-600" : "text-emerald-600" });
-        if (a.jamPulang) ev.push({ nama, teks: "pulang", waktu: `${a.tanggal} ${jam(a.jamPulang)}`, sort: a.jamPulang.toDate?.().getTime() || 0, warna: "text-navy-700" });
+      sebulan.forEach((a) => {
+        if (a.jamMasuk) ev.push({ nama, teks: a.status === "terlambat" ? "masuk (terlambat)" : "masuk", waktu: `${tglPendek(a.tanggal)} ${jam(a.jamMasuk)}`, sort: a.jamMasuk.toDate?.().getTime() || 0, warna: a.status === "terlambat" ? "text-amber-600" : "text-emerald-600" });
+        if (a.jamPulang) ev.push({ nama, teks: "pulang", waktu: `${tglPendek(a.tanggal)} ${jam(a.jamPulang)}`, sort: a.jamPulang.toDate?.().getTime() || 0, warna: "text-navy-700" });
       });
       ev.sort((x, y) => y.sort - x.sort);
       setAktivitas(ev.slice(0, 6));
       setLoading(false);
     })();
-  }, [uid, nama]);
+    return () => { batal = true; };
+  }, [uid, nama, tahun, bulan]);
+
+  const rekap = useMemo(() => hitungRekap(bulanan), [bulanan]);
+
+  const hariKalender = useMemo(
+    () => bulanan.map((a) => ({
+      tanggal: a.tanggal,
+      status: a.status,
+      masuk: jam(a.jamMasuk),
+      pulang: jam(a.jamPulang),
+    })),
+    [bulanan]
+  );
+
+  // Rentetan hadir: dihitung mundur dari catatan terakhir, berhenti begitu
+  // ketemu hari yang tidak terhitung hadir.
+  const rentetan = useMemo(() => {
+    const urut = [...bulanan].sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+    let n = 0;
+    for (const a of urut) {
+      if (!terhitungHadir(a.status)) break;
+      n++;
+    }
+    return n;
+  }, [bulanan]);
 
   const sudahMasuk = !!absen?.jamMasuk;
   const sudahPulang = !!absen?.jamPulang;
+  const bulanIni = tahun === kini.getFullYear() && bulan === kini.getMonth() + 1;
 
   const kabar = !punyaKartu
-    ? {
-        nada: "amber" as const,
-        judul: "Kartu absen belum terdaftar",
-        pesan: "Hubungi admin untuk mendaftarkan kartumu sebelum bisa absen.",
-      }
+    ? { nada: "amber" as const, judul: "Kartu absen belum terbit", pesan: "Minta admin menerbitkan kartumu dulu — tanpa itu kamu belum bisa absen." }
     : !sudahMasuk
-    ? {
-        nada: "navy" as const,
-        judul: "Belum absen masuk",
-        pesan: "Pindai kartumu di mesin absen kantor saat tiba.",
-      }
+    ? { nada: "navy" as const, judul: "Belum absen masuk", pesan: "Pindai kartumu di mesin absen kantor saat tiba." }
     : !sudahPulang
-    ? {
-        nada: "navy" as const,
-        judul: `Masuk pukul ${jam(absen?.jamMasuk)}`,
-        pesan: "Jangan lupa pindai kartu lagi sebelum pulang.",
-      }
-    : {
-        nada: "emerald" as const,
-        judul: "Absensi hari ini lengkap",
-        pesan: `Masuk ${jam(absen?.jamMasuk)} · Pulang ${jam(absen?.jamPulang)}`,
-      };
+    ? { nada: "navy" as const, judul: `Masuk pukul ${jam(absen?.jamMasuk)}`, pesan: "Jangan lupa pindai kartu lagi sebelum pulang." }
+    : { nada: "emerald" as const, judul: "Absensi hari ini lengkap", pesan: `Masuk ${jam(absen?.jamMasuk)} · Pulang ${jam(absen?.jamPulang)}` };
 
   return (
     <div className="space-y-5 md:space-y-6">
@@ -483,8 +785,8 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m5 13 4 4L19 7" /></svg>
           ) : (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <path d="M6 8.5a7 7 0 0 1 0 7" /><path d="M9.5 6a11 11 0 0 1 0 12" />
-              <path d="M13 3.5a15 15 0 0 1 0 17" /><circle cx="3" cy="12" r="1.2" fill="currentColor" stroke="none" />
+              <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" /><path d="M14 14h3v3h-3zM20 20h1" />
             </svg>
           )}
         </span>
@@ -498,34 +800,78 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard label="Kartu Absen" value={punyaKartu ? "Terdaftar" : "Belum"} delay="d-2" iconBg={punyaKartu ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-telkomRed"}
-          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" /></svg>} />
-        <StatCard label="Masuk Hari Ini" value={jam(absen?.jamMasuk)} delay="d-3" iconBg="bg-emerald-50 text-emerald-600"
-          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>} />
-        <StatCard label="Pulang Hari Ini" value={jam(absen?.jamPulang)} delay="d-4" iconBg="bg-purple-50 text-purple-600"
-          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></svg>} />
-        <StatCard label="Status" value={absen?.status || "-"} delay="d-5" iconBg="bg-blue-50 text-blue-600"
-          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        <div className="lg:col-span-2 card p-4 sm:p-6 anim-fade-up d-6">
-          <div className="flex items-start justify-between mb-5 gap-3">
-            <div><h2 className="font-semibold text-navy-900">Kehadiranku</h2><p className="text-xs text-gray-500 mt-0.5">7 hari terakhir.</p></div>
-            <div className="flex bg-gray-100 rounded-lg p-0.5 shrink-0">
-              {(["bar", "line"] as const).map((m) => (
-                <button key={m} onClick={() => setMode(m)} className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-all ${mode === m ? "bg-white text-navy-900 shadow-sm" : "text-gray-500"}`}>{m}</button>
-              ))}
+      {/* Rekap bulan berjalan */}
+      <div className="card p-5 sm:p-6 anim-fade-up d-2">
+        <div className="flex items-center gap-5">
+          <CincinProgres
+            nilai={rekap.persenKehadiran}
+            ukuran={104}
+            warnaLatar="#eef2f7"
+            warna={rekap.persenKehadiran >= 80 ? "#10b981" : rekap.persenKehadiran >= 60 ? "#fbbf24" : "#e32118"}
+            anak={
+              <>
+                <span className="text-2xl font-bold text-navy-900 tabular-nums">{rekap.persenKehadiran}%</span>
+                <span className="text-[10px] uppercase tracking-wide text-gray-400 mt-1">kehadiran</span>
+              </>
+            }
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs uppercase tracking-widest text-gray-400">{BULAN[bulan - 1]} {tahun}</p>
+            <p className="text-2xl font-bold text-navy-900 mt-1 tabular-nums leading-none">
+              {rekap.hadir + rekap.terlambat}
+              <span className="text-base font-medium text-gray-400"> dari {rekap.hariKerja} hari</span>
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-gray-500">
+              <span className="inline-flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-amber-400" />Terlambat <b className="text-navy-900 tabular-nums">{rekap.terlambat}</b></span>
+              <span className="inline-flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-blue-500" />Izin & sakit <b className="text-navy-900 tabular-nums">{rekap.izin + rekap.sakit}</b></span>
+              <span className="inline-flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-telkomRed" />Alpa <b className="text-navy-900 tabular-nums">{rekap.alpha}</b></span>
             </div>
           </div>
-          {loading ? <Skeleton className="h-40 sm:h-44 w-full" /> : <Chart data={chart} mode={mode} />}
         </div>
-        <div className="card p-4 sm:p-6 anim-fade-up d-7">
+
+        {rentetan >= 3 && (
+          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2.5 text-sm">
+            <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 2s4 4 4 8a4 4 0 0 1-8 0c0-1.5.5-2.5.5-2.5" /><path d="M12 22a6 6 0 0 0 6-6c0-2-1-3.5-2-4.5" /><path d="M12 22a6 6 0 0 1-6-6c0-1 .3-2 .8-2.8" /></svg>
+            </span>
+            <p className="text-navy-900">
+              <b>{rentetan} hari</b> hadir berturut-turut. <span className="text-gray-500">Pertahankan.</span>
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Kalender kehadiran */}
+      <div className="card p-4 sm:p-6 anim-fade-up d-3">
+        <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+          <div>
+            <h2 className="font-semibold text-navy-900">Kalender Kehadiran</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Sebulan penuh dalam satu layar.</p>
+          </div>
+          <NavigasiBulan tahun={tahun} bulan={bulan}
+            ubah={(t, b) => { setTahun(t); setBulan(b); }}
+            bisaMaju={!bulanIni} />
+        </div>
+        {loading
+          ? <Skeleton className="h-56 w-full rounded-xl" />
+          : <Kalender tahun={tahun} bulan={bulan} data={hariKalender} />}
+      </div>
+
+      {/* Jam hari ini + aktivitas */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 sm:gap-4 lg:col-span-1">
+          <StatCard label="Masuk Hari Ini" value={jam(absen?.jamMasuk)} delay="d-4" iconBg="bg-emerald-50 text-emerald-600"
+            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>} />
+          <StatCard label="Pulang Hari Ini" value={jam(absen?.jamPulang)} delay="d-5" iconBg="bg-purple-50 text-purple-600"
+            icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></svg>} />
+        </div>
+        <div className="lg:col-span-2 card p-4 sm:p-6 anim-fade-up d-6">
           <h2 className="font-semibold text-navy-900 mb-3">Aktivitas Terbaru</h2>
-          <Activity items={aktivitas} />
+          {loading ? <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-11 w-full" />)}</div>
+            : <Activity items={aktivitas} />}
         </div>
       </div>
+
       <p className="text-center text-[10px] sm:text-xs text-gray-400 tracking-widest uppercase">InfraNexia Systems &copy; {new Date().getFullYear()}</p>
     </div>
   );
@@ -534,9 +880,10 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
 function DashInner() {
   const { profil } = useAuth();
   if (!profil) return null;
-  return profil.role === "magang"
-    ? <DashMagang nama={profil.name} uid={profil.uid} punyaKartu={!!(profil as any).kartuTerdaftar} />
-    : <DashAdmin nama={profil.name} />;
+  if (profil.role === "magang")
+    return <DashMagang nama={profil.name} uid={profil.uid} punyaKartu={!!(profil as any).kartuTerdaftar} />;
+  if (profil.role === "pembimbing") return <DashPembina nama={profil.name} />;
+  return <DashAdmin nama={profil.name} />;
 }
 
 export default function DashboardPage() {

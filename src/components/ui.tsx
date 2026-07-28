@@ -77,6 +77,58 @@ export function Pesan({ tipe, children }: { tipe: "ok" | "err" | "info"; childre
   );
 }
 
+/* ---------- Pemilih beberapa pilihan (segmented control) ---------- */
+export function Segmen<T extends string>({
+  nilai, opsi, ubah, kecil = false,
+}: {
+  nilai: T;
+  opsi: { nilai: T; label: string; lencana?: number }[];
+  ubah: (v: T) => void;
+  kecil?: boolean;
+}) {
+  return (
+    <div className="inline-flex bg-gray-100 rounded-xl p-0.5 shrink-0">
+      {opsi.map((o) => {
+        const aktif = o.nilai === nilai;
+        return (
+          <button key={o.nilai} onClick={() => ubah(o.nilai)}
+            className={`relative inline-flex items-center gap-1.5 rounded-lg font-medium transition-all press ${
+              kecil ? "px-2.5 py-1.5 text-[11px]" : "px-3.5 py-2 text-xs"
+            } ${aktif ? "bg-white text-navy-900 shadow-sm" : "text-gray-500"}`}>
+            {o.label}
+            {!!o.lencana && o.lencana > 0 && (
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none ${
+                aktif ? "bg-amber-100 text-amber-700" : "bg-gray-200 text-gray-600"
+              }`}>{o.lencana}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------- Judul halaman yang seragam ---------- */
+export function KepalaHalaman({
+  atas, judul, keterangan, aksi,
+}: {
+  atas: string;
+  judul: string;
+  keterangan?: string;
+  aksi?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 anim-fade-up">
+      <div className="min-w-0">
+        <span className="text-[11px] font-semibold tracking-widest uppercase text-gray-400">{atas}</span>
+        <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{judul}</h1>
+        {keterangan && <p className="text-sm text-gray-500 mt-1 max-w-xl">{keterangan}</p>}
+      </div>
+      {aksi && <div className="shrink-0">{aksi}</div>}
+    </div>
+  );
+}
+
 /* ---------- Konfeti kecil untuk momen sukses ---------- */
 const WARNA = ["#e60012", "#10b981", "#f59e0b", "#3b82f6", "#a855f7"];
 export function Konfeti({ aktif }: { aktif: boolean }) {
