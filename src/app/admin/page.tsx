@@ -10,25 +10,27 @@ import Avatar from "@/components/Avatar";
 import PengaturanAbsensi from "@/components/PengaturanAbsensi";
 import KartuKredensial, { HasilAkun } from "@/components/KartuKredensial";
 import KesehatanData from "@/components/KesehatanData";
+import Sheet from "@/components/Sheet";
+import DaftarKartu from "@/components/DaftarKartu";
 import { CountUp, Skeleton, Kosong, Pesan } from "@/components/ui";
 
 interface U {
   id: string; name: string; email: string; role: string;
   nim?: string; kampus?: string; jurusan?: string; status?: string; createdAt?: any; foto?: string;
-  telepon?: string; wajahTerdaftar?: boolean;
+  telepon?: string; kartuTerdaftar?: boolean; kartuLabel?: string;
 }
 
-/** Penanda apakah peserta sudah mendaftarkan wajahnya. */
-function LencanaWajah({ ada }: { ada?: boolean }) {
+/** Penanda apakah peserta sudah punya kartu absen. */
+function LencanaKartu({ ada }: { ada?: boolean }) {
   return (
-    <span title={ada ? "Wajah sudah terdaftar" : "Wajah belum terdaftar"}
+    <span title={ada ? "Kartu sudah terdaftar" : "Belum punya kartu absen"}
       className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
         ada ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
       }`}>
       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
         {ada ? <path d="m5 13 4 4L19 7" /> : <><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></>}
       </svg>
-      Wajah
+      Kartu
     </span>
   );
 }
@@ -56,6 +58,7 @@ function AdminInner() {
   const [pesan, setPesan] = useState<{ t: "ok" | "err"; s: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [konfirmHapus, setKonfirmHapus] = useState<U | null>(null);
+  const [kartuUntuk, setKartuUntuk] = useState<U | null>(null);
 
   const load = async () => {
     const snap = await getDocs(collection(db, "users"));
@@ -219,7 +222,7 @@ function AdminInner() {
                   <p className="font-semibold text-sm text-navy-900 truncate">{u.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="text-xs text-gray-400 truncate">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
-                    {u.role === "magang" && <LencanaWajah ada={u.wajahTerdaftar} />}
+                    {u.role === "magang" && <LencanaKartu ada={u.kartuTerdaftar} />}
                   </div>
                 </div>
                 <span className="inline-flex items-center gap-1.5 text-xs shrink-0">
@@ -232,6 +235,11 @@ function AdminInner() {
                   ? <span className={`text-[10px] font-semibold px-2 py-1 rounded-md ${badgeDivisi(u.jurusan)}`}>{u.jurusan.toUpperCase()}</span>
                   : <span className="text-[11px] text-gray-400 capitalize">{u.role}</span>}
                 <div className="flex items-center gap-1.5">
+                  {bisaKelola && u.role === "magang" && (
+                    <TombolKecil label="Kartu" onClick={() => setKartuUntuk(u)}>
+                      <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" />
+                    </TombolKecil>
+                  )}
                   <TombolKecil label="Lihat" onClick={() => bukaView(u)}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></TombolKecil>
                   {bisaKelola && <TombolKecil label="Edit" onClick={() => bukaEdit(u)}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></TombolKecil>}
                   {bisaKelola && <TombolKecil label="Hapus" danger onClick={() => mintaHapus(u)}><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></TombolKecil>}
@@ -271,7 +279,7 @@ function AdminInner() {
                           <Link href={`/peserta/${u.id}`} className="font-medium text-navy-900 hover:underline">{u.name}</Link>
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs text-gray-400">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
-                            {u.role === "magang" && <LencanaWajah ada={u.wajahTerdaftar} />}
+                            {u.role === "magang" && <LencanaKartu ada={u.kartuTerdaftar} />}
                           </div>
                         </div>
                       </div>
@@ -292,6 +300,11 @@ function AdminInner() {
                       <div className="flex items-center justify-end gap-1 text-gray-400">
                         {bisaKelola && <IconBtn title="Edit" onClick={() => bukaEdit(u)}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></IconBtn>}
                         {bisaKelola && <IconBtn title="Hapus" onClick={() => mintaHapus(u)} danger><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></IconBtn>}
+                        {bisaKelola && u.role === "magang" && (
+                          <IconBtn title="Kartu absen" onClick={() => setKartuUntuk(u)}>
+                            <rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" />
+                          </IconBtn>
+                        )}
                         <IconBtn title="Lihat" onClick={() => bukaView(u)}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></IconBtn>
                       </div>
                     </td>
@@ -325,103 +338,157 @@ function AdminInner() {
         </button>
       )}
 
-      {/* MODAL — bottom sheet di HP, dialog di desktop */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 anim-fade-in" onClick={() => setModal(null)}>
-          <div className="absolute inset-0 bg-black/50" />
-          <div className="relative bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[88vh] overflow-y-auto pb-safe anim-slide-up sm:anim-pop"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="w-10 h-1.5 rounded-full bg-gray-200 mx-auto mt-3 sm:hidden" />
-            <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
-              <h2 className="text-base sm:text-lg font-bold text-navy-900">
-                {modal === "create" ? "Tambah Magang Baru" : modal === "edit" ? "Edit Data" : modal === "hasil" ? "Akun Dibuat" : "Detail Peserta"}
-              </h2>
-              <button onClick={() => setModal(null)} aria-label="Tutup"
-                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 press">✕</button>
-            </div>
-
-            {modal === "hasil" && hasilAkun ? (
-              <KartuKredensial hasil={hasilAkun} onTutup={() => { setModal(null); setHasilAkun(null); }} />
-            ) : (
-            <div className="px-5 py-4">
-              {pesan && <div className="mb-4"><Pesan tipe={pesan.t}>{pesan.s}</Pesan></div>}
-
-              {modal === "view" ? (
-                <div className="space-y-3 text-sm">
-                  <Info label="Nama" val={form.name} />
-                  <Info label="Email" val={form.email} />
-                  <Info label="Role" val={form.role} />
-                  <Info label="NIM / ID" val={form.nim || "-"} />
-                  <Info label="Kampus" val={form.kampus || "-"} />
-                  <Info label="Divisi / Jurusan" val={form.jurusan || "-"} />
-                  <Info label="WhatsApp" val={form.telepon || "-"} />
-                  <Info label="Status" val={form.status || "aktif"} />
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <FField label="Role">
-                    <select value={form.role} onChange={(e) => set("role", e.target.value)} className={inp}>
-                      <option value="magang">Anak Magang</option>
-                      <option value="pembimbing">Pembimbing</option>
-                      {modal === "edit" && <option value="admin">Admin</option>}
-                    </select>
-                  </FField>
-                  <FField label="Status">
-                    <select value={form.status || "aktif"} onChange={(e) => set("status", e.target.value)} className={inp}>
-                      <option value="aktif">Aktif</option>
-                      <option value="selesai">Selesai</option>
-                      <option value="nonaktif">Nonaktif</option>
-                    </select>
-                  </FField>
-                  <FField label="Nama Lengkap"><input value={form.name} onChange={(e) => set("name", e.target.value)} className={inp} /></FField>
-                  <FField label="Email (dipakai untuk login)"><input type="email" inputMode="email" autoCapitalize="none" value={form.email || ""} onChange={(e) => set("email", e.target.value)} className={inp} /></FField>
-                  <FField label={modal === "create" ? "Password (min. 6)" : "Password baru (opsional)"}><input type="password" placeholder={modal === "edit" ? "Kosongkan bila tidak diganti" : ""} value={form.password || ""} onChange={(e) => set("password", e.target.value)} className={inp} /></FField>
-                  {form.role === "magang" && <>
-                    <FField label="NIM / ID"><input value={form.nim || ""} onChange={(e) => set("nim", e.target.value)} className={inp} /></FField>
-                    <FField label="Kampus"><input value={form.kampus || ""} onChange={(e) => set("kampus", e.target.value)} className={inp} /></FField>
-                    <FField label="Divisi / Jurusan"><input value={form.jurusan || ""} onChange={(e) => set("jurusan", e.target.value)} className={inp} /></FField>
-                  </>}
-                  <FField label="Nomor WhatsApp">
-                    <input type="tel" inputMode="tel" placeholder="0812xxxxxxxx"
-                      value={form.telepon || ""} onChange={(e) => set("telepon", e.target.value)} className={inp} />
-                  </FField>
-                </div>
-              )}
-            </div>
-            )}
-
-            {modal !== "view" && modal !== "hasil" && (
-              <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-3 flex gap-2">
-                <button onClick={() => setModal(null)} className="flex-1 sm:flex-none px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium press">Batal</button>
-                <button onClick={simpan} disabled={busy}
-                  className="flex-1 px-5 py-3 rounded-xl bg-telkomRed text-white text-sm font-semibold press hover:brightness-110 disabled:opacity-50">
-                  {busy ? "Menyimpan..." : modal === "create" ? "Buat Akun" : "Simpan"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Konfirmasi hapus */}
-      {konfirmHapus && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 anim-fade-in" onClick={() => setKonfirmHapus(null)}>
-          <div className="absolute inset-0 bg-black/50" />
-          <div className="relative bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl p-6 pb-safe anim-slide-up sm:anim-pop text-center" onClick={(e) => e.stopPropagation()}>
-            <span className="w-14 h-14 mx-auto rounded-2xl bg-red-50 text-telkomRed flex items-center justify-center">
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></svg>
-            </span>
-            <p className="font-semibold text-navy-900 mt-3">Hapus {konfirmHapus.name}?</p>
-            <p className="text-sm text-gray-500 mt-1">Profil dan data wajahnya akan dihapus permanen.</p>
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => setKonfirmHapus(null)} className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-medium press">Batal</button>
-              <button onClick={hapus} disabled={busy} className="flex-1 py-3 rounded-xl bg-telkomRed text-white text-sm font-semibold press disabled:opacity-50">
-                {busy ? "Menghapus..." : "Hapus"}
+      {/* ===== Panel tambah / edit / detail ===== */}
+      <Sheet
+        buka={!!modal}
+        tutup={() => { setModal(null); setHasilAkun(null); }}
+        judul={
+          modal === "create" ? "Tambah Magang Baru"
+            : modal === "edit" ? "Edit Data"
+            : modal === "hasil" ? "Akun Dibuat"
+            : "Detail Peserta"
+        }
+        footer={
+          modal === "create" || modal === "edit" ? (
+            <div className="flex gap-2">
+              <button onClick={() => setModal(null)}
+                className="px-5 py-3.5 rounded-xl border border-gray-200 text-sm font-medium text-navy-900 press">
+                Batal
+              </button>
+              <button onClick={simpan} disabled={busy}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-telkomRed text-white text-sm font-semibold press hover:brightness-110 disabled:opacity-50 shadow-lift">
+                {busy ? (
+                  <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Menyimpan...</>
+                ) : modal === "create" ? "Buat Akun" : "Simpan Perubahan"}
               </button>
             </div>
+          ) : undefined
+        }
+      >
+        {modal === "hasil" && hasilAkun ? (
+          <KartuKredensial hasil={hasilAkun} onTutup={() => { setModal(null); setHasilAkun(null); }} />
+        ) : modal === "view" ? (
+          <div className="space-y-3 text-sm">
+            <Info label="Nama" val={form.name} />
+            <Info label="Email" val={form.email} />
+            <Info label="Role" val={form.role} />
+            <Info label="NIM / ID" val={form.nim || "-"} />
+            <Info label="Kampus" val={form.kampus || "-"} />
+            <Info label="Divisi / Jurusan" val={form.jurusan || "-"} />
+            <Info label="WhatsApp" val={form.telepon || "-"} />
+            <Info label="Status" val={form.status || "aktif"} />
+            <Info label="Kartu Absen" val={form.kartuTerdaftar ? (form.kartuLabel || "terdaftar") : "belum terdaftar"} />
           </div>
+        ) : (
+          <div className="space-y-5">
+            {pesan && <Pesan tipe={pesan.t}>{pesan.s}</Pesan>}
+
+            <Bagian judul="Akun Login">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FField label="Nama Lengkap" penuh>
+                  <input value={form.name || ""} onChange={(e) => set("name", e.target.value)}
+                    placeholder="Nama sesuai identitas" className={inp} />
+                </FField>
+                <FField label="Email" bantuan="Dipakai untuk login" penuh>
+                  <input type="email" inputMode="email" autoCapitalize="none" placeholder="nama@email.com"
+                    value={form.email || ""} onChange={(e) => set("email", e.target.value)} className={inp} />
+                </FField>
+                <FField
+                  label={modal === "create" ? "Password" : "Password Baru"}
+                  bantuan={modal === "edit" ? "Kosongkan bila tidak diganti" : undefined}
+                  penuh
+                >
+                  <input type="password" placeholder={modal === "edit" ? "••••••" : "Minimal 6 karakter"}
+                    value={form.password || ""} onChange={(e) => set("password", e.target.value)} className={inp} />
+                </FField>
+              </div>
+            </Bagian>
+
+            <Bagian judul="Peran & Status">
+              <div className="grid grid-cols-2 gap-3">
+                <FField label="Role">
+                  <select value={form.role} onChange={(e) => set("role", e.target.value)} className={inp}>
+                    <option value="magang">Anak Magang</option>
+                    <option value="pembimbing">Pembimbing</option>
+                    {modal === "edit" && <option value="admin">Admin</option>}
+                  </select>
+                </FField>
+                <FField label="Status">
+                  <select value={form.status || "aktif"} onChange={(e) => set("status", e.target.value)} className={inp}>
+                    <option value="aktif">Aktif</option>
+                    <option value="selesai">Selesai</option>
+                    <option value="nonaktif">Nonaktif</option>
+                  </select>
+                </FField>
+              </div>
+            </Bagian>
+
+            {form.role === "magang" && (
+              <Bagian judul="Data Magang">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <FField label="NIM / ID">
+                    <input value={form.nim || ""} onChange={(e) => set("nim", e.target.value)} className={inp} />
+                  </FField>
+                  <FField label="Kampus">
+                    <input value={form.kampus || ""} onChange={(e) => set("kampus", e.target.value)} className={inp} />
+                  </FField>
+                  <FField label="Divisi / Jurusan" penuh>
+                    <input value={form.jurusan || ""} onChange={(e) => set("jurusan", e.target.value)} className={inp} />
+                  </FField>
+                </div>
+              </Bagian>
+            )}
+
+            <Bagian judul="Kontak" bantuan="Dipakai untuk mengirim kredensial lewat WhatsApp">
+              <FField label="Nomor WhatsApp" penuh>
+                <input type="tel" inputMode="tel" placeholder="0812xxxxxxxx"
+                  value={form.telepon || ""} onChange={(e) => set("telepon", e.target.value)} className={inp} />
+              </FField>
+            </Bagian>
+          </div>
+        )}
+      </Sheet>
+
+      {/* ===== Pendaftaran kartu NFC ===== */}
+      <DaftarKartu
+        peserta={kartuUntuk}
+        buka={!!kartuUntuk}
+        tutup={() => setKartuUntuk(null)}
+        selesai={load}
+      />
+
+      {/* ===== Konfirmasi hapus ===== */}
+      <Sheet
+        buka={!!konfirmHapus}
+        tutup={() => setKonfirmHapus(null)}
+        judul="Hapus Peserta"
+        lebar="max-w-sm"
+        footer={
+          <div className="flex gap-2">
+            <button onClick={() => setKonfirmHapus(null)}
+              className="flex-1 py-3.5 rounded-xl border border-gray-200 text-sm font-medium text-navy-900 press">
+              Batal
+            </button>
+            <button onClick={hapus} disabled={busy}
+              className="flex-1 py-3.5 rounded-xl bg-telkomRed text-white text-sm font-semibold press disabled:opacity-50">
+              {busy ? "Menghapus..." : "Hapus"}
+            </button>
+          </div>
+        }
+      >
+        <div className="text-center py-2">
+          <span className="w-14 h-14 mx-auto rounded-2xl bg-red-50 text-telkomRed flex items-center justify-center anim-pop">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+            </svg>
+          </span>
+          <p className="font-semibold text-navy-900 mt-3">Hapus {konfirmHapus?.name}?</p>
+          <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+            Akun login, profil, data wajah, dan seluruh riwayat absensinya akan dihapus permanen.
+            Tindakan ini tidak bisa dibatalkan.
+          </p>
         </div>
-      )}
+      </Sheet>
     </div>
   );
 }
@@ -455,8 +522,24 @@ function TombolKecil({ children, onClick, label, danger }: any) {
     </button>
   );
 }
-function FField({ label, children }: any) {
-  return <div><label className="block text-xs font-medium text-gray-600 mb-1.5">{label}</label>{children}</div>;
+function FField({ label, children, bantuan, penuh }: any) {
+  return (
+    <div className={penuh ? "sm:col-span-2" : ""}>
+      <label className="block text-xs font-medium text-gray-600 mb-1.5">{label}</label>
+      {children}
+      {bantuan && <p className="text-[11px] text-gray-400 mt-1">{bantuan}</p>}
+    </div>
+  );
+}
+
+function Bagian({ judul, bantuan, children }: any) {
+  return (
+    <section>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">{judul}</p>
+      {children}
+      {bantuan && <p className="text-[11px] text-gray-400 mt-1.5">{bantuan}</p>}
+    </section>
+  );
 }
 function Info({ label, val }: any) {
   return <div className="flex justify-between gap-4 border-b border-gray-50 pb-2"><span className="text-gray-500 shrink-0">{label}</span><span className="font-medium text-navy-900 capitalize text-right break-all">{val}</span></div>;

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Pesan } from "@/components/ui";
-import { sinkronWajah, pesanError } from "@/lib/users";
+import { sinkronKartu, pesanError } from "@/lib/users";
 import {
   ambilKonfigurasi, simpanKonfigurasi, KONFIG_DEFAULT, Konfigurasi,
 } from "@/lib/absensi";
@@ -65,7 +65,6 @@ export default function PengaturanAbsensi() {
         jamMasuk: cfg.jamMasuk,
         jamPulang: cfg.jamPulang,
         toleransiMenit: Number(cfg.toleransiMenit) || 0,
-        faceThreshold: Number(cfg.faceThreshold) || 0.5,
         geofenceAktif: !!cfg.geofenceAktif,
         kantorLat: cfg.kantorLat == null ? null : Number(cfg.kantorLat),
         kantorLng: cfg.kantorLng == null ? null : Number(cfg.kantorLng),
@@ -131,20 +130,6 @@ export default function PengaturanAbsensi() {
             </p>
           </div>
 
-          {/* Ambang wajah */}
-          <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2.5">Ketelitian Wajah</p>
-            <div className="flex items-center gap-3">
-              <input type="range" min={0.35} max={0.65} step={0.01} value={cfg.faceThreshold}
-                onChange={(e) => set("faceThreshold", parseFloat(e.target.value))}
-                className="flex-1 accent-navy-900" />
-              <span className="w-14 text-center text-sm font-semibold text-navy-900 tabular-nums">{Number(cfg.faceThreshold).toFixed(2)}</span>
-            </div>
-            <p className="text-[11px] text-gray-400 mt-2">
-              Makin kecil makin ketat. 0.50 adalah nilai aman; di bawah 0.42 sering menolak wajah asli.
-            </p>
-          </div>
-
           {/* Geofencing */}
           <div>
             <div className="flex items-center justify-between gap-3 mb-2.5">
@@ -201,7 +186,7 @@ export default function PengaturanAbsensi() {
               onClick={async () => {
                 setSinkron(true); setPesan(null);
                 try {
-                  const r = await sinkronWajah();
+                  const r = await sinkronKartu();
                   setPesan({ t: "ok", s: `Sinkronisasi selesai: ${r.diperbarui} dari ${r.diperiksa} akun diperbarui.` });
                 } catch (e: any) {
                   setPesan({ t: "err", s: pesanError(e) });
@@ -212,10 +197,10 @@ export default function PengaturanAbsensi() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={sinkron ? "animate-spin" : ""}>
                 <path d="M21 12a9 9 0 1 1-6.22-8.56" /><path d="M21 3v6h-6" />
               </svg>
-              {sinkron ? "Menyinkronkan..." : "Sinkronkan status pendaftaran wajah"}
+              {sinkron ? "Menyinkronkan..." : "Sinkronkan status kartu"}
             </button>
             <p className="text-[11px] text-gray-400 mt-2">
-              Jalankan sekali setelah pembaruan sistem, agar peserta yang sudah mendaftar wajah sebelumnya tetap terbaca.
+              Jalankan sekali setelah pembaruan sistem, agar penanda kepemilikan kartu selaras dengan data sebenarnya.
             </p>
           </div>
 

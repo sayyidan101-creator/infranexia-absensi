@@ -134,9 +134,9 @@ function PesertaInner() {
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-navy-800 text-white capitalize">{orang?.role}</span>
               {orang?.jurusan && <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">{orang.jurusan}</span>}
               <span className={`text-[11px] px-2 py-0.5 rounded-full ${
-                orang?.wajahTerdaftar ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+                orang?.kartuTerdaftar ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
               }`}>
-                {orang?.wajahTerdaftar ? "wajah terdaftar" : "wajah belum terdaftar"}
+                {orang?.kartuTerdaftar ? "kartu terdaftar" : "kartu belum terdaftar"}
               </span>
             </div>
             {(orang?.nim || orang?.kampus) && (

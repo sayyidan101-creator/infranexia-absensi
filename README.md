@@ -1,65 +1,96 @@
 # InfraNexia — Absensi Magang
 
-Sistem absensi peserta magang berbasis **pengenalan wajah**, dibangun dengan
-Next.js (App Router) + Firebase. Antarmuka dioptimalkan untuk ponsel dan dapat
-dipasang sebagai PWA.
+Sistem absensi peserta magang berbasis **kartu NFC**, dibangun dengan Next.js
+(App Router) + Firebase. Antarmuka dioptimalkan untuk ponsel dan dapat dipasang
+sebagai PWA.
 
 **Seluruhnya berjalan di paket Firebase gratis (Spark).** Logika server berada
-di API route Next.js, bukan Cloud Functions, sehingga tidak perlu upgrade Blaze.
+di API route Next.js, bukan Cloud Functions.
 
-## Arsitektur
+## Cara kerja
+
+Satu perangkat Android diletakkan di kantor sebagai **mesin absen**. Peserta
+datang, menempelkan kartunya, dan kehadirannya tercatat. Peserta tidak bisa
+mencatat absensinya sendiri dari ponsel masing-masing — inilah yang membuat
+absen dari rumah tidak mungkin.
 
 ```
-Browser (Next.js PWA)                 Server (API route Next.js)
- ├── face-api.js → descriptor 128-d   POST /api/absen      · cocokkan wajah + catat
- ├── liveness challenge acak          POST /api/wajah      · daftarkan wajah
- ├── GPS (opsional)                   POST /api/izin       · ajukan & setujui izin
- └── onSnapshot (dashboard live)      POST /api/users      · kelola akun & data
-                                      GET  /api/status     · diagnosa konfigurasi
-                                      GET  /api/cron/alpa  · tandai alpa harian
+Perangkat kios (Android + NFC)        Server (API route Next.js)
+ └── baca nomor seri kartu ─────────► POST /api/kartu   · daftar & catat absen
+                                      POST /api/izin    · ajukan & setujui izin
+Ponsel peserta                        POST /api/users   · kelola akun & data
+ └── lihat status, ajukan izin        GET  /api/status  · diagnosa konfigurasi
+                                      GET  /api/cron/alpa · tandai alpa harian
                                              │  Firebase Admin SDK
                                              ▼
                                       Firestore · Firebase Auth
 ```
 
-### Prinsip keamanan
+### Kartunya
 
-Koleksi `absensi`, `faceData`, dan `izin` **tidak bisa ditulis dari browser** —
-Firestore Rules menutupnya rapat. Semua penulisan melewati API route.
+Kartu **apa pun yang ber-NFC** bisa dipakai: kartu kosong, kartu akses kantor,
+bahkan kartu uang elektronik. Sistem tidak menulis apa pun ke kartu — yang
+dibaca hanya nomor serinya, lalu disimpan dalam bentuk hash.
+
+Kartunya sendiri tidak memuat identitas apa pun. Kalau hilang, cukup cabut lewat
+menu Kelola dan kartu itu langsung tidak berlaku.
+
+### Prinsip keamanan
 
 | Ancaman | Penanganan |
 |---|---|
-| Mengubah jam perangkat agar tidak terlambat | Jam & tanggal dari waktu server, zona `Asia/Jakarta` |
+| Mengubah jam perangkat | Jam & tanggal dari waktu server, zona `Asia/Jakarta` |
 | Menulis absensi lewat console browser | Rules menolak semua tulis dari client |
-| Mencuri descriptor wajah orang lain | `faceData` tertutup total dari browser; pencocokan di server |
-| Absen dari luar kantor | Geofencing haversine divalidasi server |
-| Foto/rekaman wajah di layar lain | Liveness challenge **acak** (kedip / toleh kanan / kiri / buka mulut) |
-| Mengirim ulang payload absen yang sama | Server menolak sidik descriptor yang identik dengan 20 terakhir |
-| Akun dihapus tapi masih bisa login | Penghapusan mencakup akun Auth, profil, wajah, dan riwayat |
+| Peserta mencatat absennya sendiri dari rumah | Pencatatan hanya bisa dipanggil akun admin/pembimbing |
+| Menitipkan kartu ke teman | Perlu kebijakan tatap muka — sistem tidak bisa mendeteksi ini |
+| Menyalin pemetaan kartu | Pemetaan disimpan di koleksi tertutup, hanya sidik hash |
+| Kartu ditempel dua kali beruntun | Ketukan dalam 20 detik dianggap satu kali |
+| Perangkat kios dibawa keluar kantor | Aktifkan geofencing di Pengaturan Absensi |
 
-> Liveness berjalan di sisi klien sehingga sifatnya **penghalang**, bukan jaminan
-> mutlak. Yang mengunci sistem adalah pencocokan wajah di server, waktu server,
-> dan geofencing.
+> Titipan kartu adalah batas jujur sistem berbasis kartu. Kalau itu jadi masalah,
+> tambahkan verifikasi visual oleh operator kios — layar kios sudah menampilkan
+> foto peserta setiap kartu ditempel.
 
 ## Fitur
 
-**Absensi** — verifikasi wajah dengan dua tantangan liveness acak, geofencing
-opsional, jam dari server.
+**Mesin absen** — halaman Kios untuk admin/pembimbing. Tempel kartu, sistem
+menampilkan foto dan nama peserta beserta jam yang tercatat. Ada pencatatan
+manual sebagai cadangan bila kartu tertinggal.
 
-**Izin & sakit** — peserta mengajukan lewat menu Izin, pembimbing menyetujui atau
-menolak. Yang disetujui otomatis tercatat di riwayat kehadiran.
+**Izin & sakit** — peserta mengajukan lewat menu Izin, pembimbing menyetujui.
+Yang disetujui otomatis tercatat di riwayat kehadiran.
 
-**Alpa otomatis** — cron harian pukul 17.00 WIB menandai peserta tanpa catatan
-sebagai alpa, melewati akhir pekan.
+**Alpa otomatis** — cron harian 17.00 WIB menandai peserta tanpa catatan sebagai
+alpa, melewati akhir pekan.
 
 **Rekap & laporan** — halaman detail per peserta dengan rekap bulanan, ekspor
-`.xlsx`, dan laporan kehadiran siap cetak berkop resmi.
+`.xlsx`, dan laporan siap cetak berkop resmi.
 
-**Pengelolaan akun** — admin membuat akun, kredensial dikirim otomatis lewat
-email atau WhatsApp. Ada pemeriksa kesehatan data untuk mendeteksi akun tanpa
-profil dan sebaliknya.
+**Pengelolaan akun** — kredensial dikirim otomatis lewat email atau WhatsApp,
+plus pemeriksa kesehatan data.
 
-**Dashboard langsung** — angka kehadiran hari ini berubah sendiri tanpa refresh.
+**Dashboard langsung** — angka kehadiran berubah sendiri tanpa refresh.
+
+---
+
+## Perangkat kios
+
+Yang dibutuhkan hanya satu:
+
+- **Android dengan NFC**, menjalankan **Chrome**
+- Terhubung internet
+- Diletakkan di titik masuk kantor
+
+> **iPhone dan iPad tidak bisa.** Apple tidak mengizinkan halaman web membaca
+> NFC. Kalau hanya tersedia perangkat iOS, gunakan pencatatan manual di halaman
+> Kios, atau ganti pendekatannya ke QR code.
+
+Cara memakainya: login sebagai admin atau pembimbing → menu **Kios** → **Mulai
+Mesin Absen** → biarkan halaman terbuka selama jam kerja. Layar dijaga tetap
+menyala selama mesin aktif.
+
+NFC harus aktif di pengaturan sistem Android, dan situs perlu diizinkan
+mengakses NFC saat pertama kali diminta.
 
 ---
 
@@ -74,10 +105,8 @@ profil dan sebaliknya.
 
 ### 2. Service account
 
-Kunci ini dipakai server untuk menulis data. **Jangan pernah di-commit.**
-
 1. **Project Settings → Service accounts → Generate new private key** → unduh JSON
-2. Ubah menjadi satu baris base64 dan langsung tulis ke `.env.local`:
+2. Ubah ke base64 dan tulis ke `.env.local`:
 
    ```powershell
    $f = Get-ChildItem "$env:USERPROFILE" -Filter "*firebase-adminsdk*.json" -Recurse -ErrorAction SilentlyContinue |
@@ -86,97 +115,67 @@ Kunci ini dipakai server untuk menulis data. **Jangan pernah di-commit.**
    Add-Content -Path ".env.local" -Value "`nFIREBASE_SERVICE_ACCOUNT=$b64"
    ```
 
-   ```bash
-   # macOS / Linux
-   echo "FIREBASE_SERVICE_ACCOUNT=$(base64 -i serviceAccountKey.json | tr -d '\n')" >> .env.local
-   ```
-
-> Variabel ini **tanpa** awalan `NEXT_PUBLIC_` — itu disengaja, supaya tidak
-> pernah ikut terkirim ke browser.
-
 ### 3. Environment
-
-```bash
-cp .env.local.example .env.local
-```
 
 | Variabel | Wajib | Keterangan |
 |---|---|---|
 | `NEXT_PUBLIC_FIREBASE_*` | ya | Enam nilai dari Firebase Console |
 | `FIREBASE_SERVICE_ACCOUNT` | ya | Base64 kunci service account |
-| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | tidak | Pengiriman email akun — lihat `PANDUAN-EMAIL.md` |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | tidak | Email akun — lihat `PANDUAN-EMAIL.md` |
 | `NEXT_PUBLIC_APP_URL` | tidak | Alamat aplikasi, dipakai pada tautan di email |
-| `CRON_SECRET` | tidak | Melindungi endpoint cron. Isi bila deploy ke Vercel |
+| `CRON_SECRET` | tidak | Melindungi endpoint cron di Vercel |
 
-### 4. Dependency & model wajah
+`NEXT_PUBLIC_JAM_MASUK`, `NEXT_PUBLIC_JAM_PULANG`, dan
+`NEXT_PUBLIC_TOLERANSI_MENIT` hanya dipakai sebagai cadangan sebelum admin
+mengisi Pengaturan Absensi.
+
+### 4. Install & deploy Rules
 
 ```bash
 npm install
-./download-models.sh      # mengunduh 7 file model ke public/models
-```
-
-### 5. Deploy Rules & Index
-
-Index wajib, karena penyaringan riwayat memakai rentang tanggal.
-
-```bash
 npm install -g firebase-tools
 firebase login
 firebase use --add
 firebase deploy --only firestore:rules,firestore:indexes
 ```
 
-### 6. Membuat admin pertama
+Index wajib — penyaringan riwayat memakai rentang tanggal.
 
-Rules menutup pembuatan dokumen `users` dari client, jadi admin pertama dibuat
-lewat skrip:
+### 5. Admin pertama
 
 ```bash
 node scripts/buat-admin.mjs admin@contoh.com "PasswordKuat123" "Admin InfraNexia"
 ```
 
-Skrip membuat akun bila belum ada, memperbaiki profilnya, dan menjadikannya
-admin. Di akhir ia mencetak daftar seluruh akun beserta statusnya.
-
-### 7. Jalankan
+### 6. Jalankan
 
 ```bash
 npm run dev     # http://localhost:3000
 ```
 
-> Kamera hanya aktif di `localhost` atau HTTPS. Untuk uji dari ponsel gunakan
-> tunnel (`npx ngrok http 3000`) atau langsung deploy.
+> NFC hanya berfungsi lewat HTTPS. Di `localhost` boleh, tapi untuk uji dari
+> perangkat kios pakai tunnel (`npx ngrok http 3000`) atau langsung deploy.
 
 ---
 
-## Deploy ke Vercel
+## Alur harian
 
-1. Tambahkan seluruh variabel environment di **Settings → Environment Variables**,
-   centang **Production** dan **Preview**
-2. `git push` — Vercel membangun ulang otomatis
-3. Buka `/api/status` untuk memastikan kredensial terbaca
-
-Cron alpa harian sudah dikonfigurasi di `vercel.json` (10.00 UTC = 17.00 WIB).
-Isi `CRON_SECRET` agar endpoint itu tidak bisa dipanggil sembarang orang.
-
-Untuk menandai alpa pada tanggal tertentu secara manual:
-
-```
-GET /api/cron/alpa?tanggal=2026-07-27
-Authorization: Bearer <CRON_SECRET>
-```
+1. **Admin** mendaftarkan kartu tiap peserta: **Kelola** → ikon kartu pada baris
+   peserta → **Mulai Pindai Kartu** → tempelkan kartunya → **Daftarkan**
+2. **Operator** membuka **Kios** di perangkat kantor dan menyalakan mesin absen
+3. **Peserta** menempelkan kartu saat datang dan saat pulang
+4. Yang berhalangan mengajukan **Izin** lewat ponselnya, pembimbing menyetujui
+5. Pukul 17.00 sistem menandai yang tidak punya catatan sebagai alpa
 
 ---
 
 ## Diagnosa
 
-`/api/status` menampilkan status konfigurasi tanpa membocorkan rahasia: apakah
-service account terbaca, apakah project-nya cocok, dan apakah koneksi ke Firebase
-berhasil. Buka ini lebih dulu setiap kali ada yang tidak beres.
+`/api/status` menampilkan status konfigurasi tanpa membocorkan rahasia.
+Buka ini lebih dulu setiap kali ada yang tidak beres.
 
-Menu **Kelola → Kesehatan Data** memeriksa keselarasan antara akun Firebase Auth
-dan dokumen profil. Akun tanpa profil akan tertahan di layar pembuka; profil
-tanpa akun muncul sebagai peserta hantu di statistik.
+Menu **Kelola → Kesehatan Data** memeriksa keselarasan akun Auth dengan profil
+Firestore, dan mendaftar peserta yang belum punya kartu.
 
 ---
 
@@ -184,27 +183,19 @@ tanpa akun muncul sebagai peserta hantu di statistik.
 
 | Koleksi | Dokumen | Isi |
 |---|---|---|
-| `users` | `{uid}` | name, email, role, nim, kampus, jurusan, telepon, status, wajahTerdaftar |
-| `faceData` | `{uid}` | descriptors (array 128 angka), sidikTerakhir, updatedAt |
-| `absensi` | `{uid}_{YYYY-MM-DD}` | userId, tanggal, jamMasuk, jamPulang, status, matchScore, koordinat |
+| `users` | `{uid}` | name, email, role, nim, kampus, jurusan, telepon, status, kartuTerdaftar |
+| `kartu` | `{sidik-hash}` | userId, label, dibuatPada — tertutup dari browser |
+| `absensi` | `{uid}_{YYYY-MM-DD}` | userId, tanggal, jamMasuk, jamPulang, status, sumber, operator |
 | `izin` | `{auto}` | userId, jenis, alasan, tanggal[], status, diprosesOleh |
-| `config` | `absensi` | jam kerja, toleransi, threshold wajah, geofencing |
+| `config` | `absensi` | jam kerja, toleransi, geofencing |
 
 Status absensi: `hadir`, `terlambat`, `izin`, `sakit`, `alpha`.
 
 ---
 
-## Pengaturan dari aplikasi
-
-Menu **Kelola → Pengaturan Absensi** (khusus admin), tersimpan di
-`config/absensi` dan langsung berlaku tanpa deploy ulang: jam kerja, toleransi,
-jeda minimum absen pulang, ambang ketelitian wajah, serta titik dan radius kantor.
-
----
-
 ## Roadmap
 
-- Notifikasi pengingat absen lewat push notification
+- Kartu QR sebagai alternatif untuk perangkat non-Android
+- Foto peserta ditampilkan lebih besar di kios untuk verifikasi visual operator
+- Notifikasi pengingat absen
 - Mode gelap
-- Catatan penilaian pembimbing pada halaman peserta
-- Sertifikat akhir magang dengan tanda tangan digital

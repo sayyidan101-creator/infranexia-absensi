@@ -96,9 +96,9 @@ export default function KesehatanData() {
               />
 
               <Bagian
-                judul="Belum mendaftarkan wajah"
-                keterangan="Peserta aktif yang belum bisa absen sama sekali."
-                daftar={hasil.belumWajah.map((x) => x.nama)}
+                judul="Belum punya kartu absen"
+                keterangan="Peserta aktif yang belum bisa absen karena kartunya belum didaftarkan."
+                daftar={hasil.belumKartu.map((x) => x.nama)}
                 nada="info"
               />
 

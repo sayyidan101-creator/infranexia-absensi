@@ -59,9 +59,9 @@ export async function hapusUser(uid: string): Promise<number> {
 
 /**
  * Sinkronisasi sekali jalan setelah upgrade: mengisi penanda status
- * pendaftaran wajah untuk peserta yang mendaftar sebelum versi ini.
+ * pendaftaran kartu agar selaras dengan data yang tersimpan.
  */
-export async function sinkronWajah(): Promise<{ diperiksa: number; diperbarui: number }> {
+export async function sinkronKartu(): Promise<{ diperiksa: number; diperbarui: number }> {
   return panggilApi<{ diperiksa: number; diperbarui: number }>("/api/users", { aksi: "sinkron" });
 }
 
@@ -70,7 +70,7 @@ export interface Kesehatan {
   totalProfil: number;
   tanpaProfil: { uid: string; email: string }[];
   tanpaAkun: { uid: string; email: string; nama: string }[];
-  belumWajah: { uid: string; nama: string }[];
+  belumKartu: { uid: string; nama: string }[];
   sehat: boolean;
 }
 

@@ -72,7 +72,7 @@ async function buat(d: any, req: Request) {
     jurusan: d.jurusan || "",
     telepon: rapikanTelepon(d.telepon),
     status: "aktif",
-    wajahTerdaftar: false,
+    kartuTerdaftar: false,
     createdAt: FieldValue.serverTimestamp(),
   });
 
@@ -193,8 +193,14 @@ async function hapus(d: any, pelaku: string) {
   if (target === pelaku) throw new KesalahanAbsen("Tidak bisa menghapus akun sendiri.", 412);
 
   // Hapus akun Auth agar pengguna benar-benar tidak bisa login lagi
+  const kartu = await adminDb().collection("kartu").where("userId", "==", target).get();
+  if (!kartu.empty) {
+    const bk = adminDb().batch();
+    kartu.docs.forEach((k) => bk.delete(k.ref));
+    await bk.commit();
+  }
+
   await adminAuth().deleteUser(target).catch(() => undefined);
-  await adminDb().doc(`faceData/${target}`).delete().catch(() => undefined);
   await adminDb().doc(`users/${target}`).delete();
 
   const absen = await adminDb().collection("absensi").where("userId", "==", target).get();
@@ -229,10 +235,10 @@ async function kesehatan() {
     .filter((d) => !uidAuth.has(d.id))
     .map((d) => ({ uid: d.id, email: (d.data() as any).email || "(tanpa email)", nama: (d.data() as any).name || "" }));
 
-  const belumWajah = profilSnap.docs
+  const belumKartu = profilSnap.docs
     .filter((d) => {
       const p = d.data() as any;
-      return p.role === "magang" && (p.status || "aktif") === "aktif" && p.wajahTerdaftar !== true;
+      return p.role === "magang" && (p.status || "aktif") === "aktif" && p.kartuTerdaftar !== true;
     })
     .map((d) => ({ uid: d.id, nama: (d.data() as any).name || d.id }));
 
@@ -241,7 +247,7 @@ async function kesehatan() {
     totalProfil: profilSnap.size,
     tanpaProfil,
     tanpaAkun,
-    belumWajah,
+    belumKartu,
     sehat: tanpaProfil.length === 0 && tanpaAkun.length === 0,
   });
 }
@@ -277,7 +283,6 @@ async function bersihkan(d: any, pelaku: string) {
       absen.docs.forEach((a) => batch.delete(a.ref));
       batch.delete(dok.ref);
       await batch.commit();
-      await adminDb().doc(`faceData/${dok.id}`).delete().catch(() => undefined);
       dihapus++;
     }
   } else {
@@ -287,23 +292,30 @@ async function bersihkan(d: any, pelaku: string) {
   return NextResponse.json({ ok: true, dihapus });
 }
 
-// ---------- Sinkronisasi penanda wajah ----------
+// ---------- Sinkronisasi penanda kartu ----------
 async function sinkron() {
-  const users = await adminDb().collection("users").get();
-  const wajah = await adminDb().collection("faceData").get();
+  const [users, kartu] = await Promise.all([
+    adminDb().collection("users").get(),
+    adminDb().collection("kartu").get(),
+  ]);
 
-  const punyaWajah = new Set<string>();
-  wajah.docs.forEach((d) => {
-    const jumlah = ((d.data() as any).descriptors || []).length;
-    if (jumlah > 0) punyaWajah.add(d.id);
+  const punyaKartu = new Map<string, string>();
+  kartu.docs.forEach((d) => {
+    const k = d.data() as any;
+    if (k.userId) punyaKartu.set(k.userId, k.label || "");
   });
 
   const batch = adminDb().batch();
   let diperbarui = 0;
   users.docs.forEach((d) => {
-    const seharusnya = punyaWajah.has(d.id);
-    if ((d.data() as any).wajahTerdaftar !== seharusnya) {
-      batch.set(d.ref, { wajahTerdaftar: seharusnya }, { merge: true });
+    const p = d.data() as any;
+    const seharusnya = punyaKartu.has(d.id);
+    if (p.kartuTerdaftar !== seharusnya) {
+      batch.set(
+        d.ref,
+        { kartuTerdaftar: seharusnya, kartuLabel: punyaKartu.get(d.id) || "" },
+        { merge: true }
+      );
       diperbarui++;
     }
   });

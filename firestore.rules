@@ -50,10 +50,11 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
-    // ---------- faceData ----------
-    // Tertutup penuh dari browser. Pendaftaran lewat POST /api/wajah,
-    // pencocokan lewat POST /api/absen — keduanya memakai Admin SDK.
-    match /faceData/{userId} {
+    // ---------- kartu ----------
+    // Pemetaan sidik nomor seri kartu ke peserta. Tertutup penuh dari browser:
+    // menaruhnya di dokumen users berarti setiap pembimbing bisa membacanya,
+    // padahal ini satu-satunya hal yang membuat sebuah kartu sah.
+    match /kartu/{sidik} {
       allow read, write: if false;
     }
 

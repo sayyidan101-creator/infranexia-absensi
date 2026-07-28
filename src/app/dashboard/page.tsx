@@ -6,7 +6,7 @@ import Avatar from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { CountUp, SkeletonKartu, Skeleton, Kosong } from "@/components/ui";
 import {
-  absensiHariIni, absensiSejak, sudahEnroll, riwayatAbsensi,
+  absensiHariIni, absensiSejak, riwayatAbsensi,
   petaUserDetail, pantauAbsensiHariIni, tanggalHariIni, Absensi,
 } from "@/lib/absensi";
 
@@ -220,9 +220,9 @@ function BelumAbsen({ orang }: { orang: any[] }) {
               <p className="text-sm font-medium text-navy-900 truncate">{u.name}</p>
               <p className="text-xs text-gray-400 truncate">{u.jurusan || u.kampus || "—"}</p>
             </div>
-            {!u.wajahTerdaftar && (
+            {!u.kartuTerdaftar && (
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 shrink-0">
-                belum daftar wajah
+                belum punya kartu
               </span>
             )}
           </li>
@@ -405,9 +405,8 @@ function DashAdmin({ nama }: { nama: string }) {
 }
 
 // ================= DASHBOARD MAGANG =================
-function DashMagang({ nama, uid }: { nama: string; uid: string }) {
+function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; punyaKartu: boolean }) {
   const [absen, setAbsen] = useState<Absensi | null>(null);
-  const [enrolled, setEnrolled] = useState(false);
   const [chart, setChart] = useState<any[]>([]);
   const [aktivitas, setAktivitas] = useState<any[]>([]);
   const [mode, setMode] = useState<"bar" | "line">("bar");
@@ -416,7 +415,6 @@ function DashMagang({ nama, uid }: { nama: string; uid: string }) {
   useEffect(() => {
     (async () => {
       setAbsen(await absensiHariIni(uid));
-      setEnrolled(await sudahEnroll(uid));
       const riw = await riwayatAbsensi(uid);
       const hari = last7();
       setChart(hari.map((h) => {
@@ -436,10 +434,30 @@ function DashMagang({ nama, uid }: { nama: string; uid: string }) {
 
   const sudahMasuk = !!absen?.jamMasuk;
   const sudahPulang = !!absen?.jamPulang;
-  const aksi = !enrolled ? { href: "/enroll", label: "Daftarkan Wajah Dulu", sub: "Wajib sebelum bisa absen" }
-    : !sudahMasuk ? { href: "/absensi", label: "Absen Masuk Sekarang", sub: "Ketuk untuk buka kamera" }
-    : !sudahPulang ? { href: "/absensi", label: "Absen Pulang", sub: "Jangan lupa absen sebelum pulang" }
-    : null;
+
+  const kabar = !punyaKartu
+    ? {
+        nada: "amber" as const,
+        judul: "Kartu absen belum terdaftar",
+        pesan: "Hubungi admin untuk mendaftarkan kartumu sebelum bisa absen.",
+      }
+    : !sudahMasuk
+    ? {
+        nada: "navy" as const,
+        judul: "Belum absen masuk",
+        pesan: "Tempelkan kartumu di mesin absen kantor saat tiba.",
+      }
+    : !sudahPulang
+    ? {
+        nada: "navy" as const,
+        judul: `Masuk pukul ${jam(absen?.jamMasuk)}`,
+        pesan: "Jangan lupa tempelkan kartu lagi sebelum pulang.",
+      }
+    : {
+        nada: "emerald" as const,
+        judul: "Absensi hari ini lengkap",
+        pesan: `Masuk ${jam(absen?.jamMasuk)} · Pulang ${jam(absen?.jamPulang)}`,
+      };
 
   return (
     <div className="space-y-5 md:space-y-6">
@@ -449,40 +467,40 @@ function DashMagang({ nama, uid }: { nama: string; uid: string }) {
         <p className="text-sm text-gray-500">Semoga harimu produktif hari ini.</p>
       </div>
 
-      {/* Kartu aksi utama */}
-      {aksi ? (
-        <Link href={aksi.href}
-          className="block relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700 text-white p-5 shadow-lift press anim-fade-up d-1">
-          <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full bg-white/5 anim-float" />
-          <div className="relative flex items-center gap-4">
-            <span className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${enrolled ? "bg-telkomRed" : "bg-amber-500"} ${!sudahMasuk && enrolled ? "anim-ring" : ""}`}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" />
-                <circle cx="12" cy="11" r="2.5" /><path d="M8 17c.8-1.8 2.2-2.7 4-2.7s3.2.9 4 2.7" />
-              </svg>
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold leading-tight">{aksi.label}</p>
-              <p className="text-xs text-slate-300 mt-0.5">{aksi.sub}</p>
-            </div>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 opacity-70"><path d="m9 18 6-6-6-6" /></svg>
-          </div>
-        </Link>
-      ) : (
-        <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-5 flex items-center gap-4 anim-fade-up d-1">
-          <span className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+      {/* Status hari ini */}
+      <div className={`relative overflow-hidden rounded-2xl p-5 flex items-center gap-4 anim-fade-up d-1 ${
+        kabar.nada === "emerald" ? "bg-emerald-50 border border-emerald-200"
+          : kabar.nada === "amber" ? "bg-amber-50 border border-amber-200"
+          : "bg-gradient-to-br from-navy-900 via-navy-800 to-navy-700 text-white shadow-lift"
+      }`}>
+        {kabar.nada === "navy" && <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full bg-white/5 anim-float" />}
+        <span className={`relative w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+          kabar.nada === "emerald" ? "bg-emerald-500 text-white"
+            : kabar.nada === "amber" ? "bg-amber-500 text-white"
+            : "bg-telkomRed text-white"
+        }`}>
+          {kabar.nada === "emerald" ? (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m5 13 4 4L19 7" /></svg>
-          </span>
-          <div>
-            <p className="font-semibold text-emerald-800">Absensi hari ini lengkap</p>
-            <p className="text-xs text-emerald-700/80 mt-0.5">Masuk {jam(absen?.jamMasuk)} · Pulang {jam(absen?.jamPulang)}</p>
-          </div>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M6 8.5a7 7 0 0 1 0 7" /><path d="M9.5 6a11 11 0 0 1 0 12" />
+              <path d="M13 3.5a15 15 0 0 1 0 17" /><circle cx="3" cy="12" r="1.2" fill="currentColor" stroke="none" />
+            </svg>
+          )}
+        </span>
+        <div className="relative min-w-0">
+          <p className={`font-semibold leading-tight ${kabar.nada === "emerald" ? "text-emerald-800" : kabar.nada === "amber" ? "text-amber-800" : ""}`}>
+            {kabar.judul}
+          </p>
+          <p className={`text-xs mt-0.5 ${
+            kabar.nada === "emerald" ? "text-emerald-700/80" : kabar.nada === "amber" ? "text-amber-700/80" : "text-slate-300"
+          }`}>{kabar.pesan}</p>
         </div>
-      )}
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard label="Status Wajah" value={enrolled ? "Terdaftar" : "Belum"} delay="d-2" iconBg={enrolled ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-telkomRed"}
-          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><path d="M9 9h.01M15 9h.01" /></svg>} />
+        <StatCard label="Kartu Absen" value={punyaKartu ? "Terdaftar" : "Belum"} delay="d-2" iconBg={punyaKartu ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-telkomRed"}
+          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20M6 15h4" /></svg>} />
         <StatCard label="Masuk Hari Ini" value={jam(absen?.jamMasuk)} delay="d-3" iconBg="bg-emerald-50 text-emerald-600"
           icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>} />
         <StatCard label="Pulang Hari Ini" value={jam(absen?.jamPulang)} delay="d-4" iconBg="bg-purple-50 text-purple-600"
@@ -517,7 +535,7 @@ function DashInner() {
   const { profil } = useAuth();
   if (!profil) return null;
   return profil.role === "magang"
-    ? <DashMagang nama={profil.name} uid={profil.uid} />
+    ? <DashMagang nama={profil.name} uid={profil.uid} punyaKartu={!!(profil as any).kartuTerdaftar} />
     : <DashAdmin nama={profil.name} />;
 }
 

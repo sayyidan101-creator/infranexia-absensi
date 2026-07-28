@@ -83,8 +83,7 @@ export default function Navbar() {
 
   const menu = [
     { href: "/dashboard", label: "Dashboard", icon: I.dashboard, roles: ["admin", "pembimbing", "magang"] },
-    { href: "/absensi", label: "Absensi", icon: I.absensi, roles: ["magang"] },
-    { href: "/enroll", label: "Wajah", icon: I.enroll, roles: ["magang"] },
+    { href: "/kios", label: "Kios", icon: I.absensi, roles: ["admin", "pembimbing"] },
     { href: "/izin", label: "Izin", icon: I.izin, roles: ["admin", "pembimbing", "magang"] },
     { href: "/riwayat", label: "Riwayat", icon: I.riwayat, roles: ["admin", "pembimbing", "magang"] },
     { href: "/admin", label: "Kelola", icon: I.kelola, roles: ["admin", "pembimbing"] },

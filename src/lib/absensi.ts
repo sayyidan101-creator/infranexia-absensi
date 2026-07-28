@@ -1,15 +1,14 @@
-// Helper Firestore untuk data wajah, konfigurasi, & absensi.
+// Helper Firestore untuk konfigurasi & absensi.
 //
-// Catatan keamanan: sejak versi ini, dokumen `absensi` TIDAK BOLEH ditulis
-// dari browser (dikunci Firestore Rules). Absen masuk/pulang dilakukan lewat
-// Cloud Function `absen`, sehingga jam, status, pencocokan wajah, dan
-// validasi lokasi seluruhnya ditentukan server.
+// Catatan keamanan: dokumen `absensi` TIDAK BOLEH ditulis dari browser
+// (dikunci Firestore Rules). Pencatatan dilakukan lewat API route saat kartu
+// ditempelkan di perangkat kios, sehingga jam, status, dan validasi lokasi
+// seluruhnya ditentukan server.
 import {
   doc, getDoc, setDoc, collection, query, where, orderBy, limit,
   getDocs, onSnapshot, serverTimestamp, Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { panggilApi } from "@/lib/api";
 
 // ---- Tanggal lokal format YYYY-MM-DD ----
 export function tanggalHariIni(): string {
@@ -24,7 +23,6 @@ export interface Konfigurasi {
   jamMasuk: string;
   jamPulang: string;
   toleransiMenit: number;
-  faceThreshold: number;
   geofenceAktif: boolean;
   kantorLat: number | null;
   kantorLng: number | null;
@@ -37,7 +35,6 @@ export const KONFIG_DEFAULT: Konfigurasi = {
   jamMasuk: process.env.NEXT_PUBLIC_JAM_MASUK || "08:00",
   jamPulang: process.env.NEXT_PUBLIC_JAM_PULANG || "16:00",
   toleransiMenit: parseInt(process.env.NEXT_PUBLIC_TOLERANSI_MENIT || "15", 10),
-  faceThreshold: parseFloat(process.env.NEXT_PUBLIC_FACE_THRESHOLD || "0.5"),
   geofenceAktif: false,
   kantorLat: null,
   kantorLng: null,
@@ -62,23 +59,6 @@ export async function simpanKonfigurasi(nilai: Partial<Konfigurasi>) {
   await setDoc(doc(db, "config", "absensi"), { ...nilai, diperbaruiPada: serverTimestamp() }, { merge: true });
 }
 
-// ================= Data wajah =================
-
-/** Pendaftaran wajah dikirim ke server; koleksi faceData tertutup dari browser. */
-export async function simpanWajah(descriptors: number[][]) {
-  await panggilApi<{ ok: boolean; jumlah: number }>("/api/wajah", { descriptors });
-}
-
-/**
- * Descriptor tidak bisa dibaca dari browser (Rules menutupnya), jadi status
- * pendaftaran wajah dibaca dari penanda `wajahTerdaftar` pada dokumen user
- * yang diisi otomatis oleh Cloud Function `onFaceDataWritten`.
- */
-export async function sudahEnroll(uid: string): Promise<boolean> {
-  const snap = await getDoc(doc(db, "users", uid));
-  return snap.exists() && (snap.data() as any).wajahTerdaftar === true;
-}
-
 // ================= Absensi =================
 
 export interface Absensi {
@@ -88,38 +68,12 @@ export interface Absensi {
   jamMasuk?: Timestamp;
   jamPulang?: Timestamp;
   status: string;
-  matchScoreMasuk?: number;
-  matchScorePulang?: number;
+  sumber?: string;
+  namaOperator?: string;
   latitude?: number;
   longitude?: number;
   jarakKantorMasuk?: number;
   jarakKantorPulang?: number;
-}
-
-export interface HasilAbsen {
-  mode: "masuk" | "pulang";
-  status: string;
-  jam: string;
-  tanggal: string;
-  skor: number;
-}
-
-/**
- * Kirim descriptor wajah ke server untuk diverifikasi dan dicatat.
- * Server yang memutuskan ini absen masuk atau pulang, jamnya, dan statusnya.
- */
-export async function absenSekarang(
-  descriptor: number[],
-  lat?: number | null,
-  lng?: number | null,
-  akurasi?: number | null
-): Promise<HasilAbsen> {
-  return panggilApi<HasilAbsen>("/api/absen", {
-    descriptor,
-    lat: lat ?? null,
-    lng: lng ?? null,
-    akurasi: akurasi ?? null,
-  });
 }
 
 export async function absensiHariIni(uid: string): Promise<Absensi | null> {

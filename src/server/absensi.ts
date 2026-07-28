@@ -1,5 +1,4 @@
 import "server-only";
-import { createHash } from "crypto";
 import { adminDb, adminAuth } from "@/server/firebaseAdmin";
 
 // ============================ Konfigurasi ============================
@@ -8,7 +7,6 @@ export interface KonfigurasiServer {
   jamMasuk: string;
   jamPulang: string;
   toleransiMenit: number;
-  faceThreshold: number;
   geofenceAktif: boolean;
   kantorLat: number | null;
   kantorLng: number | null;
@@ -21,7 +19,6 @@ export const DEFAULT_KONFIG: KonfigurasiServer = {
   jamMasuk: "08:00",
   jamPulang: "16:00",
   toleransiMenit: 15,
-  faceThreshold: 0.5,
   geofenceAktif: false,
   kantorLat: null,
   kantorLng: null,
@@ -132,15 +129,6 @@ export function keMenit(jam: string): number {
 
 // ============================ Utilitas wajah & lokasi ============================
 
-export function jarakEuclid(a: number[], b: number[]): number {
-  let total = 0;
-  for (let i = 0; i < a.length; i++) {
-    const d = a[i] - b[i];
-    total += d * d;
-  }
-  return Math.sqrt(total);
-}
-
 /** Jarak dua koordinat dalam meter (haversine). */
 export function jarakMeter(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -151,25 +139,4 @@ export function jarakMeter(lat1: number, lng1: number, lat2: number, lng2: numbe
     Math.sin(dLat / 2) ** 2 +
     Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
-}
-
-/**
- * Sidik jari descriptor untuk mendeteksi pengiriman ulang (replay).
- * Kamera sungguhan tidak pernah menghasilkan dua descriptor identik,
- * jadi nilai yang sama persis = payload lama yang dikirim ulang.
- */
-export function sidikJari(descriptor: number[]): string {
-  const dibulatkan = descriptor.map((n) => n.toFixed(6)).join(",");
-  return createHash("sha256").update(dibulatkan).digest("hex").slice(0, 32);
-}
-
-export function validasiDescriptor(nilai: unknown): number[] {
-  if (!Array.isArray(nilai) || nilai.length !== 128) {
-    throw new KesalahanAbsen("Data wajah tidak valid.");
-  }
-  const angka = nilai.map(Number);
-  if (angka.some((n) => !Number.isFinite(n))) {
-    throw new KesalahanAbsen("Data wajah tidak valid.");
-  }
-  return angka;
 }
