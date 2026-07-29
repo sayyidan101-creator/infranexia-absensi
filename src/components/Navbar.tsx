@@ -16,7 +16,7 @@ const I = {
   absensi: (p: IconProps) => (
     <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" />
-      <circle cx="12" cy="11" r="2.5" /><path d="M8 17c.8-1.8 2.2-2.7 4-2.7s3.2.9 4 2.7" />
+      <path d="M7 12h10" />
     </svg>
   ),
   enroll: (p: IconProps) => (
@@ -83,7 +83,7 @@ export default function Navbar() {
 
   const menu = [
     { href: "/dashboard", label: "Dashboard", icon: I.dashboard, roles: ["admin", "pembimbing", "magang"] },
-    { href: "/kios", label: "Kios", icon: I.absensi, roles: ["admin", "pembimbing"] },
+    { href: "/kios", label: "Scan Card", icon: I.absensi, roles: ["admin", "pembimbing"] },
     { href: "/izin", label: "Izin", icon: I.izin, roles: ["admin", "pembimbing", "magang"] },
     { href: "/riwayat", label: "Riwayat", icon: I.riwayat, roles: ["admin", "pembimbing", "magang"] },
     { href: "/admin", label: "Kelola", icon: I.kelola, roles: ["admin", "pembimbing"] },

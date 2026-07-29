@@ -172,6 +172,9 @@ async function cetak(req: Request, d: any) {
         nim: u.nim || "",
         jurusan: u.jurusan || "",
         kampus: u.kampus || "",
+        foto: u.foto || "",
+        // Stempel Firestore tidak bisa dikirim apa adanya; diubah ke milidetik
+        terbitMs: k.dibuatPada?.toDate ? k.dibuatPada.toDate().getTime() : 0,
       };
     })
     .filter((x) => x.kode)

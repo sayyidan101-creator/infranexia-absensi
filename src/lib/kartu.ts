@@ -18,6 +18,8 @@ export interface KartuCetak {
   nim?: string;
   jurusan?: string;
   kampus?: string;
+  foto?: string;
+  terbitMs?: number;
 }
 
 /** Terbitkan kartu QR baru untuk peserta (admin). Kartu lamanya langsung mati. */

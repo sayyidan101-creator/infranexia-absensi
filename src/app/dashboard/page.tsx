@@ -594,7 +594,7 @@ function DashPembina({ nama }: { nama: string }) {
           angka={belum}
           judul="Belum absen hari ini"
           pesan={belum > 0
-            ? "Buka mesin absen bila ada yang kartunya bermasalah."
+            ? "Buka Scan Card bila ada yang kartunya bermasalah."
             : "Semua peserta sudah tercatat hari ini."}
           delay="d-3"
           icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><path d="M14 14h3v3h-3zM20 20h1" /></svg>}
