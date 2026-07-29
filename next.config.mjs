@@ -8,23 +8,12 @@ const nextConfig = {
     return [{ source: "/register", destination: "/login", permanent: false }];
   },
 
-  experimental: {
-    // firebase-admin hanya dipakai di API route; jangan ikut dibundel.
-    // Di Next.js 15 opsi ini bernama `serverExternalPackages` (tanpa experimental).
-    serverComponentsExternalPackages: ["firebase-admin"],
-  },
+  // firebase-admin hanya dipakai di API route; jangan ikut dibundel.
+  // Sejak Next.js 15 namanya `serverExternalPackages`, tanpa `experimental`.
+  serverExternalPackages: ["firebase-admin"],
 
-  webpack: (config, { isServer }) => {
-    // `xlsx` mencoba mengimpor modul Node saat dibundel untuk BROWSER.
-    // Jangan diterapkan ke bundle server, karena firebase-admin butuh `fs`.
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        encoding: false,
-      };
-    }
-    return config;
-  },
+  // Sejak Next.js 16 Turbopack yang dipakai secara baku, dan resolusi modul
+  // Node-nya sudah menangani `xlsx` tanpa perlu daftar fallback manual.
+  turbopack: { root: import.meta.dirname },
 };
 export default nextConfig;
