@@ -35,7 +35,29 @@ export async function panggilApi<T>(jalur: string, body?: any): Promise<T> {
   let res = await kirim(false);
   if (res.status === 401) res = await kirim(true);
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as any)?.pesan || "Terjadi kesalahan di server.");
+  // Badan jawaban dibaca sebagai teks lebih dulu, bukan langsung JSON.
+  //
+  // Ketika fungsi di server benar-benar tumbang — modul gagal dimuat, memori
+  // habis, atau waktunya melewati batas — yang kembali bukan JSON buatan kita,
+  // melainkan halaman galat dari platform. Kalau langsung di-JSON-kan, isinya
+  // hilang dan berganti kalimat cadangan yang tidak menunjuk apa pun.
+  const mentah = await res.text().catch(() => "");
+  let data: any = {};
+  try {
+    data = mentah ? JSON.parse(mentah) : {};
+  } catch {
+    if (!res.ok) {
+      const cuplikan = mentah.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
+      throw new Error(
+        `Server menjawab ${res.status} bukan dalam bentuk JSON` +
+        (cuplikan ? ` — ${cuplikan}` : ". Fungsi di server kemungkinan tumbang sebelum sempat menjawab.")
+      );
+    }
+    throw new Error("Jawaban server tidak bisa dibaca.");
+  }
+
+  if (!res.ok) {
+    throw new Error((data as any)?.pesan || `Server menjawab ${res.status} tanpa keterangan.`);
+  }
   return data as T;
 }
