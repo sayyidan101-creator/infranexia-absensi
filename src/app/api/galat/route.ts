@@ -28,7 +28,12 @@ export async function POST(req: Request) {
     return await lapor(req, body);
   } catch (e: any) {
     const status = e instanceof KesalahanAbsen ? e.status : 500;
-    const pesan = e instanceof KesalahanAbsen ? e.message : "Terjadi kesalahan di server.";
+    let pesan = e instanceof KesalahanAbsen ? e.message : "Terjadi kesalahan di server.";
+    if (status === 500) {
+      console.error("[/api/galat]", e);
+      const kode = e?.code ? `${e.code}: ` : "";
+      pesan += ` — ${(kode + String(e?.message || e)).slice(0, 220)}`;
+    }
     return NextResponse.json({ pesan }, { status });
   }
 }

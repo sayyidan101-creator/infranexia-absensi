@@ -14,6 +14,14 @@ export const dynamic = "force-dynamic";
  *
  * body.aksi = "buat" | "hapus" | "sinkron"
  */
+/** Sebab teknis yang cukup untuk menelusuri, tanpa membocorkan isi kredensial. */
+function sebabRingkas(e: any): string {
+  const kode = e?.code ? `${e.code}: ` : "";
+  const pesan = String(e?.message || e || "tanpa keterangan");
+  // Rentetan panjang tanpa spasi biasanya token atau kunci — disamarkan.
+  return (kode + pesan).replace(/[A-Za-z0-9_-]{40,}/g, "…").slice(0, 220);
+}
+
 export async function POST(req: Request) {
   try {
     const pelaku = await pastikanAdmin(req);
@@ -31,8 +39,14 @@ export async function POST(req: Request) {
     throw new KesalahanAbsen("Aksi tidak dikenal.");
   } catch (e: any) {
     const status = e instanceof KesalahanAbsen ? e.status : 500;
-    const pesan = e instanceof KesalahanAbsen ? e.message : "Terjadi kesalahan di server.";
-    if (status === 500) console.error("[/api/users]", e);
+    let pesan = e instanceof KesalahanAbsen ? e.message : "Terjadi kesalahan di server.";
+    if (status === 500) {
+      console.error("[/api/users]", e);
+      // Seluruh endpoint ini dijaga `pastikanAdmin`, jadi sebab aslinya boleh
+      // ikut terkirim. Pesan sopan yang kosong hanya membuat admin menebak,
+      // dan menunda perbaikan berhari-hari.
+      pesan += ` — ${sebabRingkas(e)}`;
+    }
     return NextResponse.json({ pesan }, { status });
   }
 }
