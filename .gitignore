@@ -3,6 +3,7 @@ node_modules
 .next
 out
 build
+tsconfig.tsbuildinfo
 
 # Environment — jangan pernah di-commit
 .env
@@ -20,8 +21,9 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Editor
-.vscode
+# Editor — setelan bersama ikut, sisanya milik masing-masing
+.vscode/*
+!.vscode/settings.json
 .idea
 
 # Firebase CLI

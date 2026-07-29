@@ -1,0 +1,31 @@
+{
+  // Sembunyikan berkas yang tidak pernah disunting tangan dari panel Explorer.
+  // Isinya tetap ada di disk — hanya tidak ikut memenuhi daftar berkas.
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/.firebase": true,
+    "**/next-env.d.ts": true,
+    "**/tsconfig.tsbuildinfo": true
+  },
+
+  // Jangan ikut dicari saat menekan Ctrl+Shift+F — hasil pencarian jadi bersih
+  // dan jauh lebih cepat.
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/package-lock.json": true
+  },
+
+  // Berhenti mengawasi perubahan di folder besar. Ini yang paling terasa:
+  // node_modules berisi puluhan ribu berkas dan membuat editor berat.
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/.git/objects/**": true
+  },
+
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "editor.formatOnSave": false,
+  "files.eol": "\n"
+}
