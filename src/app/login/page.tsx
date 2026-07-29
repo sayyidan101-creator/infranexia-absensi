@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 export default function Login() {
@@ -9,12 +9,14 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [lihat, setLihat] = useState(false);
   const [error, setError] = useState("");
+  const [kabar, setKabar] = useState("");
   const [loading, setLoading] = useState(false);
+  const [modeLupa, setModeLupa] = useState(false);
   const router = useRouter();
 
   const masuk = async () => {
     if (loading) return;
-    setError("");
+    setError(""); setKabar("");
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -25,6 +27,45 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  /**
+   * Kirim tautan setel ulang password.
+   *
+   * Balasannya sengaja sama persis untuk email yang terdaftar maupun tidak.
+   * Kalau dibedakan, halaman ini berubah jadi alat untuk menebak siapa saja
+   * yang punya akun di sini.
+   */
+  const kirimPemulihan = async () => {
+    if (loading) return;
+    setError(""); setKabar("");
+    const alamat = email.trim();
+    if (!alamat || !alamat.includes("@")) {
+      setError("Isi dulu alamat emailmu di atas.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, alamat);
+    } catch (e: any) {
+      // Hanya kesalahan yang bukan soal ada-tidaknya akun yang ditampilkan
+      if (String(e?.code) === "auth/too-many-requests") {
+        setError("Terlalu banyak percobaan. Tunggu beberapa menit lalu coba lagi.");
+        setLoading(false);
+        return;
+      }
+      if (String(e?.code) === "auth/invalid-email") {
+        setError("Format emailnya belum benar.");
+        setLoading(false);
+        return;
+      }
+    }
+    setKabar(
+      `Kalau ${alamat} terdaftar, tautan penggantian password sudah dikirim ke sana. ` +
+      "Periksa juga folder spam."
+    );
+    setModeLupa(false);
+    setLoading(false);
   };
 
   return (
@@ -44,8 +85,14 @@ export default function Login() {
 
           <div className="h-px bg-gray-100 mb-6" />
 
-          <h2 className="text-lg font-semibold text-navy-900 mb-1">Masuk ke Akun</h2>
-          <p className="text-sm text-gray-500 mb-5">Silakan masuk untuk melanjutkan.</p>
+          <h2 className="text-lg font-semibold text-navy-900 mb-1">
+            {modeLupa ? "Lupa Password" : "Masuk ke Akun"}
+          </h2>
+          <p className="text-sm text-gray-500 mb-5">
+            {modeLupa
+              ? "Masukkan email akunmu. Tautan penggantian password akan dikirim ke sana."
+              : "Silakan masuk untuk melanjutkan."}
+          </p>
 
           {error && (
             <div className="flex items-center gap-2 bg-red-50 text-telkomRed text-sm px-3 py-2.5 rounded-xl mb-4 border border-red-100 anim-fade-up">
@@ -53,6 +100,15 @@ export default function Login() {
                 <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
               </svg>
               {error}
+            </div>
+          )}
+
+          {kabar && (
+            <div className="flex items-start gap-2 bg-emerald-50 text-emerald-700 text-sm px-3 py-2.5 rounded-xl mb-4 border border-emerald-100 anim-fade-up">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 mt-0.5">
+                <path d="m5 13 4 4L19 7" />
+              </svg>
+              <span className="leading-relaxed">{kabar}</span>
             </div>
           )}
 
@@ -70,7 +126,15 @@ export default function Login() {
             />
           </div>
 
-          <label className="block text-xs font-medium text-gray-600 mb-1.5">Password</label>
+          {!modeLupa && (
+          <>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-medium text-gray-600">Password</label>
+            <button type="button" onClick={() => { setModeLupa(true); setError(""); setKabar(""); }}
+              className="text-xs font-medium text-telkomRed press">
+              Lupa password?
+            </button>
+          </div>
           <div className="relative mb-6">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -91,15 +155,34 @@ export default function Login() {
               </svg>
             </button>
           </div>
+          </>
+          )}
 
-          <button
-            onClick={masuk} disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-telkomRed to-red-700 text-white py-4 rounded-2xl font-semibold shadow-lift press hover:brightness-110 disabled:opacity-60 transition"
-          >
-            {loading ? (
-              <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Memproses...</>
-            ) : "Masuk"}
-          </button>
+          {modeLupa ? (
+            <>
+              <button
+                onClick={kirimPemulihan} disabled={loading}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-telkomRed to-red-700 text-white py-4 rounded-2xl font-semibold shadow-lift press hover:brightness-110 disabled:opacity-60 transition"
+              >
+                {loading ? (
+                  <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Mengirim...</>
+                ) : "Kirim Tautan Penggantian"}
+              </button>
+              <button type="button" onClick={() => { setModeLupa(false); setError(""); }}
+                className="w-full mt-2 py-3 text-sm text-gray-500 press">
+                Kembali ke halaman masuk
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={masuk} disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-telkomRed to-red-700 text-white py-4 rounded-2xl font-semibold shadow-lift press hover:brightness-110 disabled:opacity-60 transition"
+            >
+              {loading ? (
+                <><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Memproses...</>
+              ) : "Masuk"}
+            </button>
+          )}
 
           <p className="text-center text-xs text-gray-400 mt-5 leading-relaxed">
             Akun dibuat oleh admin. Hubungi admin/pembimbing jika kamu belum memiliki akun.

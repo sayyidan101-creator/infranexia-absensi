@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, adminAuth } from "@/server/firebaseAdmin";
 import { KesalahanAbsen, pastikanAdmin } from "@/server/absensi";
+import { catatJejak, namaUser } from "@/server/jejak";
 import { emailAktif, kirimEmailAkun } from "@/server/email";
 
 export const runtime = "nodejs";
@@ -18,12 +19,14 @@ export async function POST(req: Request) {
     const pelaku = await pastikanAdmin(req);
     const body = await req.json().catch(() => ({}));
 
-    if (body?.aksi === "buat") return await buat(body, req);
-    if (body?.aksi === "ubah") return await ubah(body);
+    if (body?.aksi === "buat") return await buat(body, req, pelaku);
+    if (body?.aksi === "ubah") return await ubah(body, pelaku);
     if (body?.aksi === "hapus") return await hapus(body, pelaku);
     if (body?.aksi === "sinkron") return await sinkron();
     if (body?.aksi === "kesehatan") return await kesehatan();
     if (body?.aksi === "bersihkan") return await bersihkan(body, pelaku);
+    if (body?.aksi === "jejak") return await ambilJejak(body);
+    if (body?.aksi === "cadangan") return await cadangan();
 
     throw new KesalahanAbsen("Aksi tidak dikenal.");
   } catch (e: any) {
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
 }
 
 // ---------- Buat akun ----------
-async function buat(d: any, req: Request) {
+async function buat(d: any, req: Request, pelaku: string) {
   if (!d.name?.trim()) throw new KesalahanAbsen("Nama wajib diisi.");
   if (!d.email?.trim()) throw new KesalahanAbsen("Email wajib diisi.");
   if (!d.password || d.password.length < 6) {
@@ -99,6 +102,12 @@ async function buat(d: any, req: Request) {
     }
   }
 
+  await catatJejak({
+    aksi: "akun.buat", pelaku, namaPelaku: await namaUser(pelaku),
+    sasaran: uid, namaSasaran: d.name || "",
+    rincian: `peran ${d.role || "magang"}`,
+  });
+
   return NextResponse.json({ uid, emailTerkirim, alasanEmail });
 }
 
@@ -129,7 +138,7 @@ function ringkasErrorEmail(e: any): string {
  * Perubahan profil dijalankan di server agar Firebase Auth dan Firestore
  * tidak pernah berbeda isi — email dan nama tersimpan di dua tempat.
  */
-async function ubah(d: any) {
+async function ubah(d: any, pelaku: string) {
   const uid = d?.uid;
   if (!uid) throw new KesalahanAbsen("UID wajib diisi.");
   if (!d.name?.trim()) throw new KesalahanAbsen("Nama wajib diisi.");
@@ -183,6 +192,19 @@ async function ubah(d: any) {
     { merge: true }
   );
 
+  const berubah = [
+    gantiEmail ? "email login" : "",
+    gantiPassword ? "password" : "",
+    lama.role !== d.role ? `peran ${lama.role} → ${d.role}` : "",
+    (lama.status || "aktif") !== (d.status || "aktif") ? `status ${d.status || "aktif"}` : "",
+  ].filter(Boolean).join(", ");
+
+  await catatJejak({
+    aksi: "akun.ubah", pelaku, namaPelaku: await namaUser(pelaku),
+    sasaran: d.uid, namaSasaran: d.name || lama.name || "",
+    rincian: berubah || "data profil",
+  });
+
   return NextResponse.json({ ok: true, emailBerubah: gantiEmail, passwordBerubah: gantiPassword });
 }
 
@@ -191,6 +213,9 @@ async function hapus(d: any, pelaku: string) {
   const target = d?.uid;
   if (!target) throw new KesalahanAbsen("UID wajib diisi.");
   if (target === pelaku) throw new KesalahanAbsen("Tidak bisa menghapus akun sendiri.", 412);
+
+  // Namanya diambil sebelum dokumennya lenyap, kalau tidak jejaknya hanya berisi UID
+  const namaTarget = await namaUser(target);
 
   // Hapus akun Auth agar pengguna benar-benar tidak bisa login lagi
   const kartu = await adminDb().collection("kartu").where("userId", "==", target).get();
@@ -207,6 +232,12 @@ async function hapus(d: any, pelaku: string) {
   const batch = adminDb().batch();
   absen.docs.forEach((doc) => batch.delete(doc.ref));
   await batch.commit();
+
+  await catatJejak({
+    aksi: "akun.hapus", pelaku, namaPelaku: await namaUser(pelaku),
+    sasaran: target, namaSasaran: namaTarget,
+    rincian: `beserta ${absen.size} catatan absensi`,
+  });
 
   return NextResponse.json({ ok: true, absensiDihapus: absen.size });
 }
@@ -289,6 +320,11 @@ async function bersihkan(d: any, pelaku: string) {
     throw new KesalahanAbsen("Jenis pembersihan tidak dikenal.");
   }
 
+  await catatJejak({
+    aksi: "data.bersihkan", pelaku, namaPelaku: await namaUser(pelaku),
+    rincian: `${jenis}: ${dihapus} data`,
+  });
+
   return NextResponse.json({ ok: true, dihapus });
 }
 
@@ -322,4 +358,60 @@ async function sinkron() {
   await batch.commit();
 
   return NextResponse.json({ diperiksa: users.size, diperbarui });
+}
+
+// ---------- Jejak audit ----------
+/**
+ * Koleksi `jejak` tertutup dari browser, jadi pembacaannya lewat sini —
+ * dan hanya untuk admin, karena pemeriksa POST di atas sudah memastikan itu.
+ */
+async function ambilJejak(d: any) {
+  const batas = Math.min(Number(d?.batas) || 100, 300);
+  const snap = await adminDb().collection("jejak").get();
+
+  const daftar = snap.docs
+    .map((x) => ({ id: x.id, ...(x.data() as any) }))
+    .map((x) => ({ ...x, padaMs: Number(x.padaMs) || 0 }))
+    .sort((a, b) => b.padaMs - a.padaMs)
+    .slice(0, batas)
+    .map(({ pada, ...sisanya }) => sisanya); // stempel Firestore tidak bisa dikirim apa adanya
+
+  return NextResponse.json({ jejak: daftar });
+}
+
+// ---------- Cadangan seluruh data ----------
+/**
+ * Satu berkas JSON berisi isi seluruh koleksi, untuk disimpan di luar Firebase.
+ *
+ * Kode kartu sengaja tidak ikut. Cadangan biasanya berakhir di folder Unduhan
+ * atau chat, dan kode kartu adalah satu-satunya hal yang membuat sebuah kartu
+ * sah — kalau bocor, semua kartu bisa digandakan. Yang ikut hanya pemetaannya,
+ * cukup untuk tahu siapa punya kartu, tidak cukup untuk memalsukannya.
+ */
+async function cadangan() {
+  const nama = ["users", "absensi", "izin", "config", "jejak", "kartu"];
+  const hasil: Record<string, any> = {};
+
+  for (const koleksi of nama) {
+    const snap = await adminDb().collection(koleksi).get();
+    hasil[koleksi] = snap.docs.map((d) => {
+      const isi: any = { id: d.id, ...(d.data() as any) };
+      if (koleksi === "kartu") delete isi.kode;
+      // Stempel Firestore diubah jadi teks ISO agar terbaca di berkas JSON
+      for (const [k, v] of Object.entries(isi)) {
+        if (v && typeof (v as any).toDate === "function") {
+          isi[k] = (v as any).toDate().toISOString();
+        }
+      }
+      return isi;
+    });
+  }
+
+  return NextResponse.json({
+    dibuatPada: new Date().toISOString(),
+    versi: 1,
+    catatan: "Kode kartu sengaja tidak disertakan.",
+    jumlah: Object.fromEntries(Object.entries(hasil).map(([k, v]) => [k, (v as any[]).length])),
+    data: hasil,
+  });
 }

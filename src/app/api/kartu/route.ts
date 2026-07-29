@@ -6,6 +6,7 @@ import {
   waktuLokal, keMenit, jarakMeter,
 } from "@/server/absensi";
 import { buatKode, hashKode, kodeValid, labelAman, normalkanKode } from "@/server/kartu";
+import { catatJejak, namaUser } from "@/server/jejak";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,7 +64,7 @@ async function pastikanPembina(req: Request): Promise<{ uid: string; nama: strin
 
 // ---------- Terbitkan kartu QR untuk peserta ----------
 async function terbitkan(req: Request, d: any) {
-  await pastikanAdmin(req);
+  const pelaku = await pastikanAdmin(req);
 
   const target = String(d?.uid || "");
   if (!target) throw new KesalahanAbsen("Peserta belum dipilih.");
@@ -107,12 +108,18 @@ async function terbitkan(req: Request, d: any) {
     { merge: true }
   );
 
+  await catatJejak({
+    aksi: "kartu.terbit", pelaku, namaPelaku: await namaUser(pelaku),
+    sasaran: target, namaSasaran: user.name || "",
+    rincian: user.kartuTerdaftar ? "kartu lama otomatis dicabut" : "kartu pertama",
+  });
+
   return NextResponse.json({ ok: true, kode, label: labelAman(kode) });
 }
 
 // ---------- Cabut kartu ----------
 async function cabut(req: Request, d: any) {
-  await pastikanAdmin(req);
+  const pelaku = await pastikanAdmin(req);
   const target = String(d?.uid || "");
   if (!target) throw new KesalahanAbsen("Peserta belum dipilih.");
 
@@ -121,6 +128,11 @@ async function cabut(req: Request, d: any) {
     { kartuLabel: FieldValue.delete(), kartuTerdaftar: false },
     { merge: true }
   );
+
+  await catatJejak({
+    aksi: "kartu.cabut", pelaku, namaPelaku: await namaUser(pelaku),
+    sasaran: target, namaSasaran: await namaUser(target),
+  });
 
   return NextResponse.json({ ok: true });
 }

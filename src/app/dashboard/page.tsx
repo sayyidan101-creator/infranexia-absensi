@@ -8,7 +8,7 @@ import Kalender, { NavigasiBulan, BULAN } from "@/components/Kalender";
 import { useAuth } from "@/context/AuthContext";
 import { CountUp, SkeletonKartu, Skeleton, Kosong, Segmen, Pesan } from "@/components/ui";
 import { gaya, terhitungHadir } from "@/lib/status";
-import { semuaIzin, Izin } from "@/lib/izin";
+import { izinMenunggu, Izin } from "@/lib/izin";
 import {
   absensiHariIni, absensiSejak, riwayatRentang, batasBulan, hitungRekap,
   petaUserDetail, pantauAbsensiHariIni, tanggalHariIni, Absensi,
@@ -459,7 +459,7 @@ function DashPembina({ nama }: { nama: string }) {
     const [detail, sejak, daftarIzin] = await Promise.all([
       petaUserDetail(),
       absensiSejak(hari[0].tgl),
-      semuaIzin().catch(() => [] as Izin[]),
+      izinMenunggu().catch(() => [] as Izin[]),
     ]);
 
     const magang = Object.entries(detail)
@@ -517,7 +517,7 @@ function DashPembina({ nama }: { nama: string }) {
   const total = orang.length;
   const belum = Math.max(0, total - hadir - telat);
   const persen = total ? Math.round(((hadir + telat) / total) * 100) : 0;
-  const menunggu = izin.filter((i) => i.status === "menunggu");
+  const menunggu = izin; // sudah disaring di query
 
   const daftar = orang.filter((u) => {
     const a = petaHariIni.get(u.id);

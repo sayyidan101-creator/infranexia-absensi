@@ -1,5 +1,5 @@
 import {
-  collection, getDocs, query, where, Timestamp,
+  collection, getDocs, query, where, limit, Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { panggilApi } from "@/lib/api";
@@ -53,7 +53,21 @@ export async function izinSaya(uid: string): Promise<Izin[]> {
 
 /** Seluruh pengajuan (admin & pembimbing). */
 export async function semuaIzin(): Promise<Izin[]> {
-  const snap = await getDocs(collection(db, "izin"));
+  const snap = await getDocs(query(collection(db, "izin"), limit(500)));
+  return urut(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+}
+
+/**
+ * Hanya pengajuan yang menunggu keputusan.
+ *
+ * Dashboard pembimbing cuma perlu tahu berapa yang tertahan, bukan seluruh
+ * riwayat pengajuan sejak awal magang. Setelah beberapa bulan berjalan,
+ * selisih keduanya besar.
+ */
+export async function izinMenunggu(): Promise<Izin[]> {
+  const snap = await getDocs(
+    query(collection(db, "izin"), where("status", "==", "menunggu"), limit(200))
+  );
   return urut(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
 }
 

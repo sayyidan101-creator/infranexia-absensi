@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import PWARegister from "@/components/PWARegister";
+import PenangkapGalat from "@/components/PenangkapGalat";
 
 export const metadata: Metadata = {
   title: "InfraNexia — Absensi Magang",
@@ -39,7 +40,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="id">
       <body className="antialiased selection:bg-navy-900/10">
-        <AuthProvider>{children}</AuthProvider>
+        <PenangkapGalat>
+          <AuthProvider>{children}</AuthProvider>
+        </PenangkapGalat>
         <PWARegister />
       </body>
     </html>

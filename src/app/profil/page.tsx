@@ -11,8 +11,14 @@ import { doc, updateDoc } from "firebase/firestore";
 import { updatePassword } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 
-// Resize + kompres gambar menjadi data URL kecil (disimpan di Firestore)
-function fileKeBase64(file: File, maks = 256): Promise<string> {
+/**
+ * Perkecil dan kompres gambar menjadi data URL, disimpan langsung di dokumen
+ * `users`. Sisi lemahnya: setiap pengambilan daftar peserta ikut mengunduh
+ * fotonya. Karena itu ukurannya ditahan di 160 piksel — avatar terbesar yang
+ * dipakai antarmuka ini hanya 92 piksel, jadi lebih dari itu murni pemborosan
+ * di setiap muat halaman.
+ */
+function fileKeBase64(file: File, maks = 160): Promise<string> {
   return new Promise((res, rej) => {
     const reader = new FileReader();
     reader.onload = () => {

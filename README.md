@@ -79,6 +79,19 @@ alpa, melewati akhir pekan.
 plus pemeriksa kesehatan data.
 
 **Dashboard langsung** — angka kehadiran berubah sendiri tanpa refresh.
+Pembimbing punya halamannya sendiri: izin yang menunggu, siapa yang belum
+datang, dan pintasan ke mesin absen.
+
+**Jejak audit** — setiap pembuatan akun, penerbitan kartu, dan keputusan izin
+tercatat beserta pelakunya. Koleksinya tertutup bahkan dari admin; pembacaannya
+lewat API yang hanya melayani baca.
+
+**Laporan galat otomatis** — kesalahan yang terjadi di perangkat pengguna
+dikirim ke server dan muncul di menu Kelola, tanpa perlu menunggu ada yang
+mengeluh.
+
+**Cadangan sekali klik** — seluruh isi Firestore diunduh sebagai satu berkas
+JSON. Firebase paket gratis tidak mencadangkan otomatis.
 
 ---
 
@@ -162,6 +175,33 @@ node scripts/buat-admin.mjs admin@contoh.com "PasswordKuat123" "Admin InfraNexia
 npm run dev     # http://localhost:3000
 ```
 
+---
+
+## Uji otomatis
+
+```bash
+npm test          # sekali jalan
+npm run test:pantau   # jalan terus sambil menyunting
+```
+
+`npm run build` menjalankan uji lebih dulu dan berhenti bila ada yang gagal —
+termasuk saat Vercel membangun. Perubahan yang merusak alur absensi tidak akan
+sampai ke produksi.
+
+Yang diuji, dengan Firestore dan Firebase Auth tiruan dalam memori sehingga
+tidak butuh jaringan maupun kredensial:
+
+| Berkas | Cakupan |
+|---|---|
+| `tests/absensi-kios.test.ts` | absen masuk & pulang, ambang keterlambatan, jeda minimum, pindaian kembar, kartu tidak sah, geofencing, siapa yang berhak mencatat |
+| `tests/izin.test.ts` | pengajuan, tabrakan tanggal, persetujuan yang menulis absensi, pembatalan |
+| `tests/kartu.test.ts` | penerbitan kode, sebaran acak, pembacaan QR, penolakan QR asing |
+| `tests/jejak.test.ts` | jejak audit tertulis untuk tindakan yang berhasil, dan tidak untuk yang gagal |
+| `tests/waktu-rekap.test.ts` | zona waktu kantor, jarak geofencing, perhitungan rekap, batas bulan |
+
+Uji ini bukan hiasan: mematikan jendela anti-ketuk-ganda, melucuti pemeriksaan
+peran, atau mengabaikan toleransi keterlambatan — ketiganya langsung ditangkap.
+
 > Kamera hanya berfungsi lewat HTTPS. Di `localhost` boleh, tapi untuk uji dari
 > perangkat kios pakai tunnel (`npx ngrok http 3000`) atau langsung deploy.
 
@@ -195,6 +235,8 @@ Firestore, dan mendaftar peserta yang belum punya kartu.
 |---|---|---|
 | `users` | `{uid}` | name, email, role, nim, kampus, jurusan, telepon, status, kartuTerdaftar |
 | `kartu` | `{sidik-hash}` | userId, kode, label, dibuatPada — tertutup dari browser |
+| `jejak` | `{auto}` | aksi, pelaku, sasaran, rincian, padaMs — tertutup, dibaca lewat API |
+| `galat` | `{auto}` | pesan, tumpukan, halaman, perangkat, uid — tertutup, dibaca lewat API |
 | `absensi` | `{uid}_{YYYY-MM-DD}` | userId, tanggal, jamMasuk, jamPulang, status, sumber, operator |
 | `izin` | `{auto}` | userId, jenis, alasan, tanggal[], status, diprosesOleh |
 | `config` | `absensi` | jam kerja, toleransi, geofencing |
@@ -203,8 +245,24 @@ Status absensi: `hadir`, `terlambat`, `izin`, `sakit`, `alpha`.
 
 ---
 
-## Roadmap
+## Diagnosa lanjutan
 
-- Kartu digital di ponsel peserta sebagai pendamping kartu cetak
-- Notifikasi pengingat absen
-- Mode gelap
+**Kelola → Sistem & Riwayat Perubahan** memuat tiga hal: jejak audit siapa
+mengubah apa, laporan galat dari perangkat pengguna, dan tombol unduh cadangan.
+
+Cadangan sebaiknya disimpan di luar Firebase — cadangan yang berada di tempat
+yang sama dengan aslinya bukan cadangan. Kode kartu sengaja tidak disertakan:
+berkas cadangan biasanya berakhir di folder Unduhan atau chat, sedangkan kode
+kartu adalah satu-satunya hal yang membuat sebuah kartu sah.
+
+---
+
+## Yang belum dikerjakan
+
+- **Titipan kartu.** Sistem tidak bisa mendeteksi kartu yang dipinjamkan.
+  Layar kios menampilkan foto peserta tiap kali kartu dipindai; selebihnya
+  urusan kebijakan.
+- **Foto profil disimpan sebagai base64 di dokumen `users`.** Praktis di skala
+  puluhan peserta, boros di skala ratusan. Pindah ke Firebase Storage bila
+  jumlahnya bertambah banyak.
+- **Notifikasi pengingat absen** dan **mode gelap** belum ada.

@@ -1,8 +1,13 @@
 "use client";
 import { useEffect } from "react";
+import { pasangPelaporGlobal } from "@/components/PenangkapGalat";
 
 export default function PWARegister() {
   useEffect(() => {
+    // Galat yang lolos ke luar React ditangkap di sini — komponen ini sudah
+    // pasti terpasang sekali di setiap halaman.
+    pasangPelaporGlobal();
+
     if (!("serviceWorker" in navigator)) return;
 
     let sudahMuatUlang = false;

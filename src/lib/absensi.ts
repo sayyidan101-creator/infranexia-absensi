@@ -111,7 +111,7 @@ export async function riwayatAbsensi(uid: string): Promise<Absensi[]> {
 
 // Absensi sejak tanggal tertentu (semua user) untuk grafik/aktivitas admin
 export async function absensiSejak(tanggalMulai: string): Promise<Absensi[]> {
-  const q = query(collection(db, "absensi"), where("tanggal", ">=", tanggalMulai));
+  const q = query(collection(db, "absensi"), where("tanggal", ">=", tanggalMulai), limit(2000));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
 }
@@ -124,9 +124,19 @@ export async function petaNamaUser(): Promise<Record<string, string>> {
   return map;
 }
 
-// Peta userId -> detail lengkap (nama, nim, jurusan, kampus)
-export async function petaUserDetail(): Promise<Record<string, any>> {
-  const snap = await getDocs(collection(db, "users"));
+/**
+ * Peta userId -> detail (nama, nim, jurusan, kampus, foto).
+ *
+ * Secara baku hanya peserta magang yang diambil. Dokumen `users` memuat foto
+ * dalam bentuk base64, jadi menarik seluruh koleksi berarti mengunduh foto
+ * semua orang — termasuk admin dan pembimbing yang tidak pernah muncul di
+ * daftar kehadiran. Catatan absensi memang hanya milik peserta magang.
+ */
+export async function petaUserDetail(semuaPeran = false): Promise<Record<string, any>> {
+  const q = semuaPeran
+    ? query(collection(db, "users"))
+    : query(collection(db, "users"), where("role", "==", "magang"));
+  const snap = await getDocs(q);
   const map: Record<string, any> = {};
   snap.forEach((d) => { map[d.id] = d.data(); });
   return map;

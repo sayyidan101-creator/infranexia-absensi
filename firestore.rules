@@ -79,6 +79,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---------- jejak audit ----------
+    // Tertutup penuh, termasuk dari admin. Catatan audit yang bisa disunting
+    // pelakunya sendiri tidak membuktikan apa pun. Admin membacanya lewat
+    // API route, yang hanya melayani pembacaan.
+    match /jejak/{catatan} {
+      allow read, write: if false;
+    }
+
+    // ---------- laporan galat ----------
+    // Ditulis dan dibaca lewat API route saja. Kalau bisa ditulis langsung
+    // dari browser, koleksinya akan jadi tempat pembuangan sampah.
+    match /galat/{laporan} {
+      allow read, write: if false;
+    }
+
     // ---------- config ----------
     // Jam kerja, toleransi, titik & radius kantor.
     match /config/{docId} {

@@ -4,6 +4,7 @@ import { adminDb } from "@/server/firebaseAdmin";
 import {
   KesalahanAbsen, pastikanLogin, ambilKonfigurasiServer, waktuLokal,
 } from "@/server/absensi";
+import { catatJejak } from "@/server/jejak";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -176,6 +177,15 @@ async function proses(uid: string, d: any) {
     }
     await batch.commit();
   }
+
+  await catatJejak({
+    aksi: keputusan === "disetujui" ? "izin.setujui" : "izin.tolak",
+    pelaku: uid,
+    namaPelaku: (pembina.data() as any).name || "",
+    sasaran: izin.userId,
+    namaSasaran: izin.nama || "",
+    rincian: `${izin.jenis} ${izin.tanggalMulai}–${izin.tanggalSelesai} (${izin.jumlahHari} hari)`,
+  });
 
   return NextResponse.json({ ok: true, keputusan, dicatat, hariIni });
 }

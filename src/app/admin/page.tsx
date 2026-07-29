@@ -10,6 +10,7 @@ import Avatar from "@/components/Avatar";
 import PengaturanAbsensi from "@/components/PengaturanAbsensi";
 import KartuKredensial, { HasilAkun } from "@/components/KartuKredensial";
 import KesehatanData from "@/components/KesehatanData";
+import PanelSistem from "@/components/PanelSistem";
 import Sheet from "@/components/Sheet";
 import DaftarKartu from "@/components/DaftarKartu";
 import { CountUp, Skeleton, Kosong, Pesan } from "@/components/ui";
@@ -211,6 +212,9 @@ function AdminInner() {
 
       {/* Pemeriksaan keselarasan akun & profil */}
       {bisaKelola && <KesehatanData />}
+
+      {/* Jejak audit, laporan galat, dan pencadangan */}
+      {bisaKelola && <PanelSistem />}
 
       {/* Statistik */}
       <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
