@@ -79,6 +79,23 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---------- kegiatan harian ----------
+    // Dibaca peserta yang bersangkutan dan seluruh pembina; ditulis hanya lewat
+    // API route, supaya batas menulis mundur dan penguncian setelah diperiksa
+    // tidak bisa dilewati dari browser.
+    match /aktivitas/{catatan} {
+      allow get: if login() && (isPembina() || resource == null || resource.data.userId == uid());
+      allow list: if login() && (isPembina() || resource.data.userId == uid());
+      allow write: if false;
+    }
+
+    // Foto dipisah dari catatannya agar daftar kegiatan tetap ringan dibuka.
+    match /aktivitasFoto/{catatan} {
+      allow get: if login() && (isPembina() || resource == null || resource.data.userId == uid());
+      allow list: if false;
+      allow write: if false;
+    }
+
     // ---------- jejak audit ----------
     // Tertutup penuh, termasuk dari admin. Catatan audit yang bisa disunting
     // pelakunya sendiri tidak membuktikan apa pun. Admin membacanya lewat

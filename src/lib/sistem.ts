@@ -30,6 +30,7 @@ export const LABEL_AKSI: Record<string, string> = {
   "kartu.cabut": "mencabut kartu",
   "izin.setujui": "menyetujui izin",
   "izin.tolak": "menolak izin",
+  "kegiatan.periksa": "memeriksa catatan kegiatan",
   "config.ubah": "mengubah pengaturan",
   "data.bersihkan": "membersihkan data",
 };

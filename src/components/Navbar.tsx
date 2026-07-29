@@ -24,6 +24,12 @@ const I = {
       <circle cx="12" cy="12" r="9" /><path d="M9 10h.01M15 10h.01M8.5 14.5a4.5 4.5 0 0 0 7 0" />
     </svg>
   ),
+  kegiatan: (p: IconProps) => (
+    <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      <path d="M9 7h7M9 11h5" />
+    </svg>
+  ),
   izin: (p: IconProps) => (
     <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" />
@@ -82,11 +88,14 @@ export default function Navbar() {
   if (!profil) return null;
 
   const menu = [
-    { href: "/dashboard", label: "Dashboard", icon: I.dashboard, roles: ["admin", "pembimbing", "magang"] },
-    { href: "/kios", label: "Scan Card", icon: I.absensi, roles: ["admin", "pembimbing"] },
-    { href: "/izin", label: "Izin", icon: I.izin, roles: ["admin", "pembimbing", "magang"] },
-    { href: "/riwayat", label: "Riwayat", icon: I.riwayat, roles: ["admin", "pembimbing", "magang"] },
-    { href: "/admin", label: "Kelola", icon: I.kelola, roles: ["admin", "pembimbing"] },
+    // `pendek` dipakai bilah bawah di ponsel. Pembina punya enam menu, dan pada
+    // lebar 390 px label penuh mulai saling berdesakan sampai terpotong.
+    { href: "/dashboard", label: "Dashboard", pendek: "Beranda", icon: I.dashboard, roles: ["admin", "pembimbing", "magang"] },
+    { href: "/kios", label: "Scan Card", pendek: "Scan", icon: I.absensi, roles: ["admin", "pembimbing"] },
+    { href: "/kegiatan", label: "Kegiatan", pendek: "Kegiatan", icon: I.kegiatan, roles: ["admin", "pembimbing", "magang"] },
+    { href: "/izin", label: "Izin", pendek: "Izin", icon: I.izin, roles: ["admin", "pembimbing", "magang"] },
+    { href: "/riwayat", label: "Riwayat", pendek: "Riwayat", icon: I.riwayat, roles: ["admin", "pembimbing", "magang"] },
+    { href: "/admin", label: "Kelola", pendek: "Kelola", icon: I.kelola, roles: ["admin", "pembimbing"] },
   ].filter((m) => m.roles.includes(profil.role));
 
   const keluar = async () => {
@@ -190,15 +199,15 @@ export default function Navbar() {
             const Ikon = m.icon;
             return (
               <Link key={m.href} href={m.href}
-                className="relative flex-1 flex flex-col items-center justify-center gap-1 py-2.5 press">
+                className="relative flex-1 min-w-0 flex flex-col items-center justify-center gap-1 py-2.5 press">
                 <span className={`absolute top-0 h-0.5 rounded-full bg-telkomRed transition-all duration-300 ${aktif ? "w-8 opacity-100" : "w-0 opacity-0"}`} />
-                <span className={`relative flex items-center justify-center w-10 h-7 rounded-xl transition-all duration-300 ${
+                <span className={`relative flex items-center justify-center w-9 h-7 rounded-xl transition-all duration-300 ${
                   aktif ? "bg-navy-900/10 text-navy-900 -translate-y-0.5" : "text-gray-400"
                 }`}>
                   <Ikon className="w-[21px] h-[21px]" />
                 </span>
-                <span className={`text-[10.5px] leading-none transition-colors ${aktif ? "text-navy-900 font-semibold" : "text-gray-400 font-medium"}`}>
-                  {m.label}
+                <span className={`text-[10px] leading-none transition-colors ${aktif ? "text-navy-900 font-semibold" : "text-gray-400 font-medium"}`}>
+                  {m.pendek}
                 </span>
               </Link>
             );

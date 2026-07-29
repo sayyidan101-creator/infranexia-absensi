@@ -66,6 +66,10 @@ kode dan pencatatan manual sebagai cadangan bila kartunya tertinggal.
 **Kartu siap cetak** — lembar A4 berisi sepuluh kartu ukuran KTP, lengkap dengan
 QR, nama, NIM, dan kode cadangan. Bisa per peserta atau sekaligus semuanya.
 
+**Logbook kegiatan** — peserta menulis apa yang dikerjakannya tiap hari, boleh
+disertai satu foto bukti. Pembimbing memberi catatan lalu menandai sudah
+diperiksa. Seluruhnya bisa dicetak jadi lampiran laporan magang kampus.
+
 **Izin & sakit** — peserta mengajukan lewat menu Izin, pembimbing menyetujui.
 Yang disetujui otomatis tercatat di riwayat kehadiran.
 
@@ -196,6 +200,7 @@ tidak butuh jaringan maupun kredensial:
 | `tests/absensi-kios.test.ts` | absen masuk & pulang, ambang keterlambatan, jeda minimum, pindaian kembar, kartu tidak sah, geofencing, siapa yang berhak mencatat |
 | `tests/izin.test.ts` | pengajuan, tabrakan tanggal, persetujuan yang menulis absensi, pembatalan |
 | `tests/kartu.test.ts` | penerbitan kode, sebaran acak, pembacaan QR, penolakan QR asing |
+| `tests/kegiatan.test.ts` | batas menulis mundur, penguncian setelah diperiksa, pemisahan foto, batas ukuran |
 | `tests/jejak.test.ts` | jejak audit tertulis untuk tindakan yang berhasil, dan tidak untuk yang gagal |
 | `tests/waktu-rekap.test.ts` | zona waktu kantor, jarak geofencing, perhitungan rekap, batas bulan |
 
@@ -214,8 +219,10 @@ peran, atau mengabaikan toleransi keterlambatan — ketiganya langsung ditangkap
    pakai tombol **Cetak Kartu** di kepala halaman Kelola
 2. **Operator** membuka **Kios** di perangkat kantor dan menyalakan mesin absen
 3. **Peserta** memindai kartu saat datang dan saat pulang
-4. Yang berhalangan mengajukan **Izin** lewat ponselnya, pembimbing menyetujui
-5. Pukul 17.00 sistem menandai yang tidak punya catatan sebagai alpa
+4. **Peserta** menulis kegiatan hari itu di menu **Kegiatan**, boleh dengan foto
+5. **Pembimbing** meninjau catatan yang masuk, memberi umpan balik, lalu menandainya
+6. Yang berhalangan mengajukan **Izin** lewat ponselnya, pembimbing menyetujui
+7. Pukul 17.00 sistem menandai yang tidak punya catatan sebagai alpa
 
 ---
 
@@ -239,6 +246,8 @@ Firestore, dan mendaftar peserta yang belum punya kartu.
 | `galat` | `{auto}` | pesan, tumpukan, halaman, perangkat, uid — tertutup, dibaca lewat API |
 | `absensi` | `{uid}_{YYYY-MM-DD}` | userId, tanggal, jamMasuk, jamPulang, status, sumber, operator |
 | `izin` | `{auto}` | userId, jenis, alasan, tanggal[], status, diprosesOleh |
+| `aktivitas` | `{uid}_{YYYY-MM-DD}` | userId, nama, tanggal, kegiatan, kendala, adaFoto, status, catatanPembimbing |
+| `aktivitasFoto` | `{uid}_{YYYY-MM-DD}` | userId, tanggal, foto — dipisah agar daftar kegiatan tetap ringan |
 | `config` | `absensi` | jam kerja, toleransi, geofencing |
 
 Status absensi: `hadir`, `terlambat`, `izin`, `sakit`, `alpha`.
@@ -254,6 +263,22 @@ Cadangan sebaiknya disimpan di luar Firebase — cadangan yang berada di tempat
 yang sama dengan aslinya bukan cadangan. Kode kartu sengaja tidak disertakan:
 berkas cadangan biasanya berakhir di folder Unduhan atau chat, sedangkan kode
 kartu adalah satu-satunya hal yang membuat sebuah kartu sah.
+
+---
+
+## Catatan tentang logbook
+
+Catatan hanya bisa ditulis untuk **tujuh hari terakhir**. Batas ini yang membuat
+logbook bermakna — tanpanya, sebulan catatan bisa dikarang dalam satu malam di
+minggu terakhir, persis kebiasaan yang membuat logbook kehilangan gunanya.
+
+Begitu pembimbing menandai sudah diperiksa, catatannya terkunci. Kalau memang
+perlu diperbaiki, pembimbing mencabut tandanya dulu.
+
+Fotonya opsional dan dikecilkan di perangkat peserta sebelum dikirim — 640 piksel,
+sekitar 80 KB. Cloud Storage menuntut paket berbayar sejak September 2024, jadi
+gambar disimpan di dalam dokumen Firestore. Dengan 20 peserta selama 20 hari
+kerja, itu sekitar 40 MB per bulan dari kuota gratis 1 GB.
 
 ---
 

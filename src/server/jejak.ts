@@ -18,6 +18,7 @@ export type AksiJejak =
   | "akun.buat" | "akun.ubah" | "akun.hapus"
   | "kartu.terbit" | "kartu.cabut"
   | "izin.setujui" | "izin.tolak"
+  | "kegiatan.periksa"
   | "config.ubah"
   | "data.bersihkan";
 
@@ -79,6 +80,7 @@ export const LABEL_AKSI: Record<AksiJejak, string> = {
   "kartu.cabut": "mencabut kartu",
   "izin.setujui": "menyetujui izin",
   "izin.tolak": "menolak izin",
+  "kegiatan.periksa": "memeriksa catatan kegiatan",
   "config.ubah": "mengubah pengaturan absensi",
   "data.bersihkan": "membersihkan data yatim",
 };
