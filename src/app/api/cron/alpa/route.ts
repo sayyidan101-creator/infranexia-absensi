@@ -16,25 +16,69 @@ export const dynamic = "force-dynamic";
  * Dijadwalkan lewat vercel.json (17.00 WIB). Bisa juga dipanggil manual
  * dengan header Authorization: Bearer <CRON_SECRET>.
  */
+/**
+ * Sampai berapa hari ke belakang penandaan susulan masih boleh diminta.
+ *
+ * Tanpa batas ini, satu permintaan bisa menuliskan alpa untuk tanggal
+ * bertahun-tahun lalu — dan tidak ada route yang bisa menghapus catatan
+ * absensi kembali.
+ */
+const MAKS_HARI_SUSULAN = 14;
+
+function selisihHari(dari: string, sampai: string): number {
+  const a = new Date(dari + "T00:00:00Z").getTime();
+  const b = new Date(sampai + "T00:00:00Z").getTime();
+  return Math.round((b - a) / 86_400_000);
+}
+
 export async function GET(req: Request) {
-  // Vercel Cron mengirim CRON_SECRET sebagai bearer token bila env-nya diatur.
+  /**
+   * Penjagaan gagal-tertutup.
+   *
+   * Sebelumnya penjagaan ini dibungkus `if (rahasia)` — kalau env-nya tidak
+   * diisi, pintunya terbuka untuk siapa pun. Padahal satu permintaan GET di
+   * sini bisa menonaktifkan seluruh peserta sekaligus. Kalau rahasianya belum
+   * dipasang, yang benar adalah menolak semua permintaan, bukan menerima
+   * semuanya.
+   */
   const rahasia = process.env.CRON_SECRET;
-  if (rahasia) {
-    const header = req.headers.get("authorization") || "";
-    if (header !== `Bearer ${rahasia}`) {
-      return NextResponse.json({ pesan: "Tidak berwenang." }, { status: 401 });
-    }
+  if (!rahasia) {
+    console.error("[/api/cron/alpa] CRON_SECRET belum diatur — permintaan ditolak.");
+    return NextResponse.json(
+      { pesan: "Endpoint ini belum dikonfigurasi. Atur CRON_SECRET terlebih dahulu." },
+      { status: 503 }
+    );
+  }
+  if ((req.headers.get("authorization") || "") !== `Bearer ${rahasia}`) {
+    return NextResponse.json({ pesan: "Tidak berwenang." }, { status: 401 });
   }
 
   try {
     const cfg = await ambilKonfigurasiServer();
+    const hariIni = waktuLokal(cfg.zonaWaktu).tanggal;
 
     // Boleh menandai tanggal lain lewat ?tanggal=YYYY-MM-DD (untuk susulan)
     const url = new URL(req.url);
     const diminta = url.searchParams.get("tanggal");
     const tanggal = /^\d{4}-\d{2}-\d{2}$/.test(diminta || "")
       ? (diminta as string)
-      : waktuLokal(cfg.zonaWaktu).tanggal;
+      : hariIni;
+
+    // Hanya hari yang sudah lewat, dan tidak terlalu jauh ke belakang.
+    // Tanggal masa depan tidak masuk akal — orangnya belum sempat datang.
+    const jarak = selisihHari(tanggal, hariIni);
+    if (jarak < 0) {
+      return NextResponse.json(
+        { pesan: "Tanggal belum tiba; tidak ada yang bisa ditandai alpa." },
+        { status: 400 }
+      );
+    }
+    if (jarak > MAKS_HARI_SUSULAN) {
+      return NextResponse.json(
+        { pesan: `Penandaan susulan maksimal ${MAKS_HARI_SUSULAN} hari ke belakang.` },
+        { status: 400 }
+      );
+    }
 
     // Lewati akhir pekan
     const hari = new Date(tanggal + "T00:00:00Z").getUTCDay();
@@ -58,7 +102,10 @@ export async function GET(req: Request) {
       return dalamPeriode(u, tanggal);
     });
 
-    const dinonaktifkan = await tutupPeriodeSelesai(usersSnap, tanggal);
+    // Penonaktifan diukur dari HARI INI, bukan dari tanggal yang diminta.
+    // Menandai alpa susulan minggu lalu tidak boleh memutar balik status
+    // orang yang periodenya baru berakhir sesudah tanggal itu.
+    const dinonaktifkan = await tutupPeriodeSelesai(usersSnap, hariIni);
 
     if (sasaran.length === 0) {
       return NextResponse.json({

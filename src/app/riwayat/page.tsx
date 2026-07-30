@@ -9,6 +9,7 @@ import CincinProgres from "@/components/CincinProgres";
 import { CountUp, Skeleton, Kosong, Pesan, Segmen, KepalaHalaman } from "@/components/ui";
 import { gaya, URUTAN } from "@/lib/status";
 import { unduhXlsx, cetakHtml } from "@/lib/ekspor";
+import { lolos } from "@/lib/aman";
 import {
   absensiRentang, riwayatRentang, petaUserDetail, hitungRekap,
   tanggalHariIni, geserHari, batasBulan, Absensi,
@@ -179,7 +180,17 @@ function RiwayatInner() {
   };
 
   const eksporPDF = () => {
-    const baris = filtered.map((r) => `<tr><td>${r.tanggal}</td><td>${r.nama}</td><td>${r.divisi}</td><td>${r.masuk}</td><td>${r.pulang}</td><td>${gaya(r.status).pendek}</td></tr>`).join("");
+    // Nama dan divisi diisi peserta sendiri lewat halaman Profil, jadi wajib
+    // diloloskan. Tanpa ini satu peserta cukup menamai dirinya dengan tag
+    // gambar bermuatan skrip, lalu menunggu pembimbing menekan Cetak — skripnya
+    // berjalan dengan hak pembimbing itu, di origin aplikasi.
+    const baris = filtered
+      .map(
+        (r) =>
+          `<tr><td>${lolos(r.tanggal)}</td><td>${lolos(r.nama)}</td><td>${lolos(r.divisi)}</td>` +
+          `<td>${lolos(r.masuk)}</td><td>${lolos(r.pulang)}</td><td>${lolos(gaya(r.status).pendek)}</td></tr>`
+      )
+      .join("");
     cetakHtml("Riwayat Kehadiran", `<html><head><meta charset="utf-8"><title>Riwayat Kehadiran</title>
       <style>body{font-family:sans-serif;padding:24px;color:#0f172a}h1{color:#0a1f44;margin:0 0 4px}
       p.sub{color:#64748b;font-size:13px;margin:0 0 18px}

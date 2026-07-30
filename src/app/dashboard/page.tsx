@@ -38,6 +38,19 @@ const tglPendek = (s: string) => {
  * Sebelumnya satu permintaan yang gagal membuat `setLoading(false)` tak pernah
  * dijalankan, dan halaman berhenti selamanya di kerangka abu-abu.
  */
+/**
+ * Nama depan untuk sapaan.
+ *
+ * `nama.split(" ")[0]` langsung akan melempar bila `name` kosong — dan itu bisa
+ * terjadi: akun yang dibuat langsung di Firebase Console tidak punya kolom itu.
+ * Akibatnya orang tersebut melihat layar galat setiap kali membuka dasbor,
+ * tanpa satu pun cara memperbaikinya sendiri.
+ */
+function namaDepan(nama: unknown): string {
+  const s = String(nama ?? "").trim();
+  return s ? s.split(/\s+/)[0] : "Pengguna";
+}
+
 function pesanMuat(e: any): string {
   const s = String(e?.code || e?.message || e);
   if (/permission-denied|insufficient/i.test(s))
@@ -271,9 +284,10 @@ function DashAdmin({ nama }: { nama: string }) {
   const [loading, setLoading] = useState(true);
   const [magangAktif, setMagangAktif] = useState<any[]>([]);
   const [langsung, setLangsung] = useState(false);
+  const [galat, setGalat] = useState("");
 
-  const muat = async () => {
-    setLoading(true);
+  /** Isi pemuatannya; galat dibiarkan naik ke `muat` yang menanganinya. */
+  const muatIsi = async () => {
     const hari = last7();
 
     // Dua permintaan saja: seluruh profil + absensi 7 hari terakhir.
@@ -307,7 +321,26 @@ function DashAdmin({ nama }: { nama: string }) {
     });
     ev.sort((x, y) => y.sort - x.sort);
     setAktivitas(ev.slice(0, 6));
-    setLoading(false);
+  };
+
+  /**
+   * Dasbor pembimbing dan dasbor peserta sudah lama punya `try/catch/finally`,
+   * dasbor admin ini belum — padahal komentar di atas berkas ini menyebut bug
+   * "tersangkut memuat" sebagai sudah beres. Ternyata beres di dua dari tiga.
+   *
+   * Tanpa `finally`, satu kegagalan jaringan membuat seluruh panel berhenti di
+   * skeleton sementara kepala halaman tetap menyatakan "Sistem berjalan normal".
+   */
+  const muat = async () => {
+    setLoading(true);
+    setGalat("");
+    try {
+      await muatIsi();
+    } catch (e: any) {
+      setGalat(pesanMuat(e));
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { muat(); }, []);
 
@@ -340,9 +373,10 @@ function DashAdmin({ nama }: { nama: string }) {
       <div className="anim-fade-up">
         <div>
           <Clock />
-          <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {nama.split(" ")[0]}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {namaDepan(nama)}</h1>
           <p className="text-sm text-gray-500 mt-0.5 inline-flex items-center gap-1.5">
             Pantau kehadiran magang
+            {/* Penanda "langsung" hanya benar bila pemuatannya berhasil */}
             {langsung && (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -352,6 +386,8 @@ function DashAdmin({ nama }: { nama: string }) {
           </p>
         </div>
       </div>
+
+      {galat && <Pesan tipe="err">{galat}</Pesan>}
 
       {/* Ringkasan kehadiran */}
       {loading ? <Skeleton className="h-[9.5rem] w-full rounded-2xl" />
@@ -526,7 +562,7 @@ function DashPembina({ nama }: { nama: string }) {
       <div className="anim-fade-up">
         <div>
           <Clock />
-          <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {nama.split(" ")[0]}</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {namaDepan(nama)}</h1>
           <p className="text-sm text-gray-500 mt-0.5 inline-flex items-center gap-1.5">
             Peserta bimbinganmu hari ini
             {langsung && (
@@ -788,7 +824,7 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
     <div className="space-y-5 md:space-y-6">
       <div className="anim-fade-up">
         <Clock />
-        <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {nama.split(" ")[0]}</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {namaDepan(nama)}</h1>
         <p className="text-sm text-gray-500">Semoga harimu produktif hari ini.</p>
       </div>
 

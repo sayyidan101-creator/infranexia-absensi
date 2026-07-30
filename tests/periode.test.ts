@@ -181,11 +181,18 @@ describe("pindaian tertunda", () => {
 
 // ============================ Cron alpa ============================
 
+const RAHASIA_CRON = "rahasia-uji";
+
 describe("alpa otomatis mengikuti periode", () => {
   const jalankan = (tanggal: string) =>
-    cronAlpa(new Request(`http://uji/api/cron/alpa?tanggal=${tanggal}`));
+    cronAlpa(
+      new Request(`http://uji/api/cron/alpa?tanggal=${tanggal}`, {
+        headers: { Authorization: `Bearer ${RAHASIA_CRON}` },
+      })
+    );
 
   beforeEach(() => {
+    process.env.CRON_SECRET = RAHASIA_CRON;
     wadah.db.taruh("users/berjalan", {
       name: "Sedang Magang", role: "magang", status: "aktif",
       mulaiPada: "2026-07-01", selesaiPada: "2026-08-31",
@@ -216,8 +223,95 @@ describe("alpa otomatis mengikuti periode", () => {
   });
 
   it("akhir pekan dilewati sama sekali", async () => {
-    const r = await (await jalankan("2026-08-01")).json();  // Sabtu
+    // Sabtu 25 Juli 2026 — hari yang sudah lewat, karena tanggal masa depan
+    // kini ditolak lebih dulu
+    const r = await (await jalankan("2026-07-25")).json();
     expect(r.dilewati).toBe("akhir pekan");
     expect(r.ditandai).toBe(0);
+  });
+});
+
+// ============================ Penjagaan cron ============================
+
+describe("cron alpa tidak terbuka untuk umum", () => {
+  const HARI_INI = "2026-07-28";
+
+  beforeEach(() => {
+    process.env.CRON_SECRET = RAHASIA_CRON;
+    wadah.db.taruh("users/berjalan", {
+      name: "Sedang Magang", role: "magang", status: "aktif",
+      mulaiPada: "2026-07-01", selesaiPada: "2026-08-31",
+    });
+    wadah.db.taruh("users/sudah", {
+      name: "Sudah Selesai", role: "magang", status: "aktif", selesaiPada: "2026-07-20",
+    });
+  });
+
+  const mentah = (url: string, token?: string) =>
+    cronAlpa(new Request(url, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined));
+
+  it("tanpa token ditolak", async () => {
+    const res = await mentah(`http://uji/api/cron/alpa?tanggal=${HARI_INI}`);
+    expect(res.status).toBe(401);
+    // Dan tidak satu pun peserta tersentuh
+    expect(wadah.db.ambil("users/sudah").status).toBe("aktif");
+    expect(wadah.db.ambil(`absensi/berjalan_${HARI_INI}`)).toBeUndefined();
+  });
+
+  it("token yang salah ditolak", async () => {
+    const res = await mentah(`http://uji/api/cron/alpa?tanggal=${HARI_INI}`, "bukan-rahasia");
+    expect(res.status).toBe(401);
+  });
+
+  it("bila CRON_SECRET belum diatur, semua permintaan ditolak", async () => {
+    // Dulu justru sebaliknya: `if (rahasia)` membuat pintunya terbuka lebar
+    // ketika env-nya kosong — dan README menandainya "tidak wajib".
+    delete process.env.CRON_SECRET;
+    const res = await mentah(`http://uji/api/cron/alpa?tanggal=${HARI_INI}`, RAHASIA_CRON);
+    expect(res.status).toBe(503);
+    expect(wadah.db.ambil("users/sudah").status).toBe("aktif");
+  });
+
+  it("tanggal masa depan ditolak, tidak menonaktifkan siapa pun", async () => {
+    // Inti serangannya dulu: satu alamat dengan tanggal jauh ke depan
+    // menonaktifkan setiap peserta yang punya tanggal selesai.
+    const res = await mentah("http://uji/api/cron/alpa?tanggal=2999-12-31", RAHASIA_CRON);
+    expect(res.status).toBe(400);
+    expect((await res.json()).pesan).toContain("belum tiba");
+    expect(wadah.db.ambil("users/sudah").status).toBe("aktif");
+    expect(wadah.db.ambil("users/berjalan").status).toBe("aktif");
+  });
+
+  it("tanggal terlalu jauh ke belakang ditolak", async () => {
+    const res = await mentah("http://uji/api/cron/alpa?tanggal=2026-01-05", RAHASIA_CRON);
+    expect(res.status).toBe(400);
+    expect((await res.json()).pesan).toContain("maksimal");
+    expect(wadah.db.ambil("absensi/berjalan_2026-01-05")).toBeUndefined();
+  });
+
+  it("susulan beberapa hari ke belakang masih boleh", async () => {
+    const res = await mentah("http://uji/api/cron/alpa?tanggal=2026-07-27", RAHASIA_CRON);  // Senin
+    expect(res.status).toBe(200);
+    expect(wadah.db.ambil("absensi/berjalan_2026-07-27").status).toBe("alpha");
+  });
+
+  it("penonaktifan diukur dari hari ini, bukan dari tanggal susulan", async () => {
+    // Kasus yang membedakan kedua pilihan. Hari ini 28 Juli. Peserta ini
+    // periodenya berakhir 27 Juli, dan yang ditandai susulan adalah 24 Juli:
+    //   diukur dari hari ini (28) -> 27 < 28, sudah lewat, dinonaktifkan
+    //   diukur dari tanggal (24)  -> 27 < 24 salah, tidak dinonaktifkan
+    // Yang benar yang pertama: status keaktifan itu soal keadaan sekarang,
+    // bukan soal keadaan pada hari yang sedang ditandai.
+    wadah.db.taruh("users/baru-selesai", {
+      name: "Baru Selesai", role: "magang", status: "aktif",
+      mulaiPada: "2026-07-01", selesaiPada: "2026-07-27",
+    });
+
+    const r = await (await mentah("http://uji/api/cron/alpa?tanggal=2026-07-24", RAHASIA_CRON)).json();
+
+    expect(r.dinonaktifkan).toContain("Baru Selesai");
+    expect(wadah.db.ambil("users/baru-selesai").status).toBe("nonaktif");
+    // Yang masih berjalan tidak ikut terbawa
+    expect(wadah.db.ambil("users/berjalan").status).toBe("aktif");
   });
 });

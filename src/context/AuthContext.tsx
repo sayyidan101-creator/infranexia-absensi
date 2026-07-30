@@ -40,17 +40,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      if (u) {
-        const snap = await getDoc(doc(db, "users", u.uid));
-        if (snap.exists()) {
-          setProfil({ uid: u.uid, ...(snap.data() as any) });
+      try {
+        if (u) {
+          const snap = await getDoc(doc(db, "users", u.uid));
+          setProfil(snap.exists() ? { uid: u.uid, ...(snap.data() as any) } : null);
         } else {
           setProfil(null);
         }
-      } else {
+      } catch (e) {
+        // Membaca profil butuh jaringan, dan sekarang aplikasi ini bisa dipasang
+        // di HP — dibuka di tempat bersinyal buruk jadi hal biasa.
+        //
+        // Dulu galat ini tidak ditangkap sama sekali. Firebase tidak menunggu
+        // callback ini, jadi penolakannya senyap: `setLoading(false)` tidak
+        // pernah tercapai dan seluruh aplikasi berhenti di layar "Menyiapkan
+        // aplikasi" selamanya. Menutup lalu membuka lagi pun sama saja.
+        console.error("[AuthContext] gagal membaca profil", e);
         setProfil(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return () => unsub();
   }, []);

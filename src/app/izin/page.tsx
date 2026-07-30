@@ -275,7 +275,17 @@ function IzinInner() {
         ) : undefined}
       />
 
-      {pesan && <Pesan tipe={pesan.t}>{pesan.s}</Pesan>}
+      {/*
+        Hanya ditampilkan saat tidak ada lembar terbuka.
+
+        Lembarnya portal `fixed inset-0 z-[70]`, jadi pesan di badan halaman
+        berada di belakangnya dan tidak terlihat. Dulu ini satu-satunya tempat
+        pesan dirender — akibatnya validasi "menolak wajib pakai catatan"
+        berjalan tanpa jejak apa pun di layar, dan pengajuan yang ditolak server
+        tampak seperti berhasil terkirim. Salinannya sekarang ada di dalam kedua
+        lembar; yang ini untuk pesan yang muncul setelah lembarnya tertutup.
+      */}
+      {pesan && !buka && !tinjau && <Pesan tipe={pesan.t}>{pesan.s}</Pesan>}
 
       {/* ---------- PEMBINA: yang menunggu didahulukan ---------- */}
       {pembina && !loading && menunggu.length > 0 && tapis !== "menunggu" && (
@@ -457,6 +467,9 @@ function IzinInner() {
         }
       >
         <div className="space-y-4">
+          {/* Pesan di dalam lembar — di luar sini ia tertutup lapisan gelapnya */}
+          {pesan && <Pesan tipe={pesan.t}>{pesan.s}</Pesan>}
+
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">Jenis</label>
             <div className="grid grid-cols-2 gap-2">
@@ -604,6 +617,11 @@ function IzinInner() {
       >
         {tinjau && (
           <div className="space-y-4">
+            {/* Pesan di dalam lembar — di luar sini ia tertutup lapisan gelapnya.
+                Ini yang membuat "Tolak tanpa catatan" dulu terasa seperti
+                tombol yang tidak berfungsi. */}
+            {pesan && <Pesan tipe={pesan.t}>{pesan.s}</Pesan>}
+
             <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
               <Avatar name={tinjau.nama} size={44} />
               <div className="min-w-0 flex-1">

@@ -133,14 +133,52 @@ describe("pindaian berulang", () => {
     expect(wadah.db.ambil(`absensi/${PESERTA}_${HARI}`).jamPulang).toBeUndefined();
   });
 
-  it("setelah lewat jendela anti-ganda, pindaian dianggap absen pulang", async () => {
+  it("kartu yang tertinggal di depan kamera tidak tercatat pulang", async () => {
+    // Kios mengirim ulang kode yang sama selama kartunya masih terlihat kamera.
+    // Dulu kiriman di detik ke-20 lolos dari jendela anti-ganda dan langsung
+    // dianggap absen pulang — peserta tercatat bekerja dua puluh detik.
     await panggil({ aksi: "absen", kode: KODE }, tokenOperator);
 
-    vi.setSystemTime(new Date("2026-07-28T01:05:25.000Z")); // 25 detik, lewat 20
-    const { body } = await isi(await panggil({ aksi: "absen", kode: KODE }, tokenOperator));
+    for (const detik of [4, 8, 12, 16, 20, 40, 59]) {
+      vi.setSystemTime(new Date(`2026-07-28T01:05:${String(detik).padStart(2, "0")}.000Z`));
+      const { body } = await isi(await panggil({ aksi: "absen", kode: KODE }, tokenOperator));
+      expect(body.mode).toBe("masuk");
+      expect(body.diulang).toBe(true);
+    }
+    expect(wadah.db.ambil(`absensi/${PESERTA}_${HARI}`).jamPulang).toBeUndefined();
+  });
 
-    expect(body.diulang).toBe(false);
+  it("absen pulang yang sebenarnya tetap tercatat", async () => {
+    await panggil({ aksi: "absen", kode: KODE }, tokenOperator);
+
+    // Kartu tertinggal sepanjang pagi
+    for (const detik of [4, 12, 20]) {
+      vi.setSystemTime(new Date(`2026-07-28T01:05:${String(detik).padStart(2, "0")}.000Z`));
+      await panggil({ aksi: "absen", kode: KODE }, tokenOperator);
+    }
+
+    // 16.02 WIB, peserta pulang sungguhan
+    vi.setSystemTime(new Date("2026-07-28T09:02:00.000Z"));
+    const { status, body } = await isi(await panggil({ aksi: "absen", kode: KODE }, tokenOperator));
+
+    expect(status).toBe(200);
     expect(body.mode).toBe("pulang");
+    expect(body.jam).toBe("16:02");
+  });
+
+  it("lantai jeda lima menit menentukan batasnya", async () => {
+    await panggil({ aksi: "absen", kode: KODE }, tokenOperator);
+
+    // Sedikit sebelum lima menit: masih dianggap pindaian berulang
+    vi.setSystemTime(new Date("2026-07-28T01:09:59.000Z"));
+    let r = await isi(await panggil({ aksi: "absen", kode: KODE }, tokenOperator));
+    expect(r.body.mode).toBe("masuk");
+
+    // Lewat sedikit: barulah absen pulang
+    vi.setSystemTime(new Date("2026-07-28T01:10:01.000Z"));
+    r = await isi(await panggil({ aksi: "absen", kode: KODE }, tokenOperator));
+    expect(r.body.mode).toBe("pulang");
+    expect(r.body.diulang).toBe(false);
   });
 });
 

@@ -91,10 +91,24 @@ function AdminInner() {
   const [cetakSibuk, setCetakSibuk] = useState(false);
   const [kartuUntuk, setKartuUntuk] = useState<U | null>(null);
 
+  /**
+   * Memuat daftar peserta.
+   *
+   * `finally` di sini yang menentukan. Tanpanya, satu kegagalan jaringan
+   * membuat `loading` tidak pernah dilepas dan tabelnya berhenti di baris
+   * skeleton selamanya — sementara kartu statistik di atas menampilkan 0/0/0,
+   * yang terbaca sebagai "tidak ada peserta", bukan "gagal memuat".
+   */
   const load = async () => {
-    const snap = await getDocs(collection(db, "users"));
-    setUsers(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-    setLoading(false);
+    setLoading(true);
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      setUsers(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+    } catch (e: any) {
+      setPesan({ t: "err", s: `Gagal memuat data peserta. ${pesanError(e)}` });
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => { load(); }, []);
 

@@ -3,12 +3,7 @@ import { gambarQr } from "@/lib/pindaiQr";
 import type { KartuCetak } from "@/lib/kartu";
 import { formatKode } from "@/lib/kartu";
 
-/** Lolos karakter HTML agar nama peserta tidak merusak tata letak kartu. */
-function e(teks: unknown): string {
-  return String(teks ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
+import { lolos as e, sumberGambarAman } from "@/lib/aman";
 
 const KOLOM = 2;
 const BARIS = 5;
@@ -64,15 +59,22 @@ function kelasNama(nama: string): string {
 
 function sisiDepan(k: KartuCetak, qr: string, logo: string): string {
   const bawah = [k.nim, k.jurusan].filter(Boolean).join(" · ");
-  const foto = k.foto
-    ? `<img class="pasfoto" src="${k.foto}" alt="" />`
+  // Foto profil diisi peserta sendiri dan tidak pernah divalidasi bentuknya,
+  // jadi bukan cukup diloloskan — atribut `src` juga menerima `javascript:`.
+  // `sumberGambarAman` membuang apa pun yang bukan data URL gambar atau https;
+  // kartu tanpa foto jauh lebih baik daripada skrip berjalan sebagai admin.
+  const alamatFoto = sumberGambarAman(k.foto);
+  const foto = alamatFoto
+    ? `<img class="pasfoto" src="${alamatFoto}" alt="" />`
     : `<div class="pasfoto kosong">${e(inisial(k.nama))}</div>`;
 
   return `
   <div class="kartu depan">
     <div class="pita"></div>
     <div class="kepala">
-      ${logo ? `<img class="logo" src="${logo}" alt="" />` : `<span class="merek">InfraNexia</span>`}
+      ${sumberGambarAman(logo)
+        ? `<img class="logo" src="${sumberGambarAman(logo)}" alt="" />`
+        : `<span class="merek">InfraNexia</span>`}
       <span class="jenis">Kartu Tanda Peserta Magang</span>
     </div>
 
@@ -84,7 +86,7 @@ function sisiDepan(k: KartuCetak, qr: string, logo: string): string {
         <p class="instansi">${e(k.kampus || "PT Telkom Indonesia")}</p>
       </div>
       <div class="qr">
-        <img src="${qr}" alt="" />
+        <img src="${sumberGambarAman(qr)}" alt="" />
         <p class="kode">${e(formatKode(k.kode))}</p>
       </div>
     </div>

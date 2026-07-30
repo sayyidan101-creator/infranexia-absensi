@@ -52,6 +52,8 @@ function KegiatanInner() {
   // ---- Pemeriksaan oleh pembimbing ----
   const [dibuka, setDibuka] = useState<Kegiatan | null>(null);
   const [fotoDibuka, setFotoDibuka] = useState<string>("");
+  /** Penjaga agar foto dari pembukaan lama tidak menimpa yang baru. */
+  const nomorFoto = useRef(0);
   const [catatan, setCatatan] = useState("");
 
   const muat = async () => {
@@ -142,10 +144,20 @@ function KegiatanInner() {
     setDibuka(k);
     setCatatan(k.catatanPembimbing || "");
     setFotoDibuka("");
-    if (k.adaFoto) {
-      // Baru diambil sekarang — inilah gunanya foto disimpan terpisah
-      fotoKegiatan(k.userId, k.tanggal).then(setFotoDibuka).catch(() => undefined);
-    }
+
+    // Nomor urut permintaan. Tanpa ini dua pembukaan berturut-turut berlomba,
+    // dan yang selesai terakhir yang menang: pembimbing membuka catatan Andi
+    // (jaringan lambat), menutupnya, membuka catatan Budi — foto Andi bisa
+    // muncul di dalam lembar Budi, berlabel nama dan tanggal Budi, lalu ditekan
+    // "Tandai Sudah Diperiksa". Untuk sistem yang gunanya membuktikan
+    // kehadiran, itu bukan tampilan yang salah, tapi pemeriksaan yang tidak sah.
+    const punyaNomor = ++nomorFoto.current;
+    if (!k.adaFoto) return;
+
+    // Baru diambil sekarang — inilah gunanya foto disimpan terpisah
+    fotoKegiatan(k.userId, k.tanggal)
+      .then((f) => { if (nomorFoto.current === punyaNomor) setFotoDibuka(f); })
+      .catch(() => undefined);
   };
 
   const tandai = async (batal = false) => {

@@ -1,13 +1,8 @@
 "use client";
-import type { Rekap } from "@/lib/absensi";
+import { tanggalHariIni, type Rekap } from "@/lib/absensi";
 import { labelPeriode, hariKerja, Periode } from "@/lib/periode";
 
-/** Lolos karakter HTML agar data peserta tidak merusak tata letak surat. */
-function e(teks: unknown): string {
-  return String(teks ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
+import { lolos as e } from "@/lib/aman";
 
 const tglIndo = (s: string) => {
   const d = new Date(s + "T00:00:00");
@@ -42,7 +37,9 @@ export function sertifikatHtml(d: DataSertifikat): string {
   const { orang, rekap, logbookDiperiksa = 0, nomor, kota = "Palembang" } = d;
   const ttd = d.penandatangan || {};
 
-  const hariIni = new Date().toISOString().slice(0, 10);
+  // Zona kantor, bukan UTC. Surat yang dicetak pukul 06.30 WIB tanggal
+  // 1 September pernah tertulis "31 Agustus" karena tanggalnya diambil UTC.
+  const hariIni = tanggalHariIni();
   const totalHariKerja =
     orang.mulaiPada && orang.selesaiPada ? hariKerja(orang.mulaiPada, orang.selesaiPada) : 0;
 

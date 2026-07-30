@@ -2,6 +2,24 @@
 import { auth } from "@/lib/firebase";
 
 /**
+ * Galat dari API, beserta kode statusnya.
+ *
+ * Kodenya dibawa serta karena ada keputusan yang bergantung padanya:
+ * antrean offline harus bisa membedakan "server sedang tersendat, coba lagi"
+ * dari "kartu ini memang tidak sah, berapa kali pun dicoba". Sebelumnya
+ * keduanya hanya berupa teks, dan pembedaannya dilakukan dengan mencocokkan
+ * kalimat — yang berarti satu galat tak terduga menghapus seluruh antrean.
+ *
+ * `status` 0 berarti permintaannya tidak pernah sampai ke server.
+ */
+export class KesalahanApi extends Error {
+  constructor(pesan: string, public status = 0) {
+    super(pesan);
+    this.name = "KesalahanApi";
+  }
+}
+
+/**
  * Pemanggil API internal Next.js. Setiap permintaan membawa ID token Firebase
  * agar server bisa memastikan siapa yang meminta dan apa perannya.
  *
@@ -12,14 +30,16 @@ import { auth } from "@/lib/firebase";
  */
 export async function panggilApi<T>(jalur: string, body?: any): Promise<T> {
   const pengguna = auth.currentUser;
-  if (!pengguna) throw new Error("Sesi kamu berakhir. Silakan login ulang.");
+  if (!pengguna) throw new KesalahanApi("Sesi kamu berakhir. Silakan login ulang.", 401);
 
   const kirim = async (paksaSegar: boolean): Promise<Response> => {
     let token: string;
     try {
       token = await pengguna.getIdToken(paksaSegar);
     } catch {
-      throw new Error("Gagal memperbarui sesi. Silakan login ulang.");
+      // Menyegarkan token butuh jaringan, jadi kegagalannya sering berarti
+      // koneksi putus — bukan sesi yang benar-benar dicabut. Statusnya 0.
+      throw new KesalahanApi("Gagal memperbarui sesi. Silakan login ulang.", 0);
     }
     try {
       return await fetch(jalur, {
@@ -28,7 +48,7 @@ export async function panggilApi<T>(jalur: string, body?: any): Promise<T> {
         body: JSON.stringify(body ?? {}),
       });
     } catch {
-      throw new Error("Tidak bisa terhubung ke server. Periksa koneksi lalu coba lagi.");
+      throw new KesalahanApi("Tidak bisa terhubung ke server. Periksa koneksi lalu coba lagi.", 0);
     }
   };
 
@@ -48,16 +68,20 @@ export async function panggilApi<T>(jalur: string, body?: any): Promise<T> {
   } catch {
     if (!res.ok) {
       const cuplikan = mentah.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
-      throw new Error(
+      throw new KesalahanApi(
         `Server menjawab ${res.status} bukan dalam bentuk JSON` +
-        (cuplikan ? ` — ${cuplikan}` : ". Fungsi di server kemungkinan tumbang sebelum sempat menjawab.")
+        (cuplikan ? ` — ${cuplikan}` : ". Fungsi di server kemungkinan tumbang sebelum sempat menjawab."),
+        res.status
       );
     }
-    throw new Error("Jawaban server tidak bisa dibaca.");
+    throw new KesalahanApi("Jawaban server tidak bisa dibaca.", res.status);
   }
 
   if (!res.ok) {
-    throw new Error((data as any)?.pesan || `Server menjawab ${res.status} tanpa keterangan.`);
+    throw new KesalahanApi(
+      (data as any)?.pesan || `Server menjawab ${res.status} tanpa keterangan.`,
+      res.status
+    );
   }
   return data as T;
 }

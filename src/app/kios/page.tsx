@@ -11,12 +11,22 @@ import { kameraTersedia, mulaiPindaiQr, PemindaiQr } from "@/lib/pindaiQr";
 import { absenDenganKartu, absenManual, HasilAbsenKartu } from "@/lib/kartu";
 import {
   ambilAntrean, antrekan, buang, tandaiGagal, kosongkan, mundurDetik, layakDiantre,
+  bersihkanKedaluwarsa, MAKS_PERCOBAAN,
 } from "@/lib/antrean";
 import { ambilKonfigurasi, KONFIG_DEFAULT, Konfigurasi } from "@/lib/absensi";
 
 interface Catatan extends HasilAbsenKartu {
   waktu: number;
 }
+
+/**
+ * Berapa lama kode yang sama diabaikan sebelum boleh dikirim lagi.
+ *
+ * Harus lebih panjang daripada jendela anti-ganda di server (20 detik), kalau
+ * tidak kiriman berulang dari kartu yang tertinggal akan lolos sebagai
+ * pindaian baru.
+ */
+const JEDA_KODE_SAMA_MS = 60_000;
 
 function getPosisi(): Promise<GeolocationPosition | null> {
   return new Promise((res) => {
@@ -143,7 +153,18 @@ function ScanCardInner() {
     const kode = String(isi || "").trim();
     if (!kode) return;
     const { kode: lalu, waktu } = kodeTerakhir.current;
-    if (kode === lalu && Date.now() - waktu < 4000) return;
+
+    // Jeda untuk kode YANG SAMA sengaja dibuat panjang.
+    //
+    // Kamera membaca ulang sepuluh kali per detik, jadi kartu yang disandarkan
+    // di depan tablet terkirim terus-menerus. Sebelumnya jedanya empat detik —
+    // lebih pendek daripada jendela anti-ganda di server, sehingga kiriman
+    // keenam lolos dan tercatat sebagai absen pulang pukul delapan pagi.
+    //
+    // Kartu orang lain tidak terhalang: penjagaan ini hanya berlaku bila
+    // kodenya sama persis dengan pindaian sebelumnya.
+    if (kode === lalu && Date.now() - waktu < JEDA_KODE_SAMA_MS) return;
+
     kodeTerakhir.current = { kode, waktu: Date.now() };
     kirim(kode);
   }, [kirim]);
@@ -182,18 +203,46 @@ function ScanCardInner() {
    */
   const kirimAntrean = useCallback(async () => {
     if (mengirimAntre) return;
+
+    // Yang kedaluwarsa dibuang lebih dulu, tapi tidak diam-diam. Pindaian yang
+    // hilang berarti seseorang akan ditandai alpa sore itu — operator harus
+    // tahu selagi masih bisa dicatat manual.
+    const basi = bersihkanKedaluwarsa();
+    if (basi.length) {
+      setGalat(
+        `${basi.length} pindaian gagal terkirim sampai kedaluwarsa dan sudah dibuang. ` +
+        `Catat orangnya lewat "Kartu tertinggal" sebelum sore.`
+      );
+    }
+
     const daftar = ambilAntrean();
     setAntre(daftar.length);
     if (daftar.length === 0) return;
 
     setMengirimAntre(true);
+
     for (const item of daftar) {
       try {
         await absenDenganKartu(item.kode, item.lat, item.lng, mundurDetik(item));
         buang(item.id);
       } catch (e: any) {
-        if (layakDiantre(e)) break;          // masih putus, coba lagi nanti
-        buang(item.id);                       // ditolak server, percuma diulang
+        if (!layakDiantre(e)) {
+          buang(item.id);        // penolakan tetap: kartu tidak sah, di luar radius, dsb.
+          continue;
+        }
+        // Masih pantas dicoba lagi. Percobaannya dicatat supaya satu pindaian
+        // yang selalu gagal tidak menghalangi sisanya sampai kiamat.
+        tandaiGagal(item.id);
+        if (item.percobaan + 1 >= MAKS_PERCOBAAN) {
+          buang(item.id);
+          setGalat(
+            `Satu pindaian gagal terkirim setelah ${MAKS_PERCOBAAN} kali dicoba dan sudah dibuang. ` +
+            `Catat orangnya lewat "Kartu tertinggal".`
+          );
+          continue;
+        }
+
+        break;                   // koneksi masih bermasalah — sisanya nanti
       }
     }
     setAntre(ambilAntrean().length);

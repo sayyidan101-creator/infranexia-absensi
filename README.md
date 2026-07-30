@@ -156,7 +156,8 @@ Layar dijaga tetap menyala selama mesin aktif.
 | `FIREBASE_SERVICE_ACCOUNT` | ya | Base64 kunci service account |
 | `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | tidak | Email akun — lihat `PANDUAN-EMAIL.md` |
 | `NEXT_PUBLIC_APP_URL` | tidak | Alamat aplikasi, dipakai pada tautan di email |
-| `CRON_SECRET` | tidak | Melindungi endpoint cron di Vercel |
+| `CRON_SECRET` | **ya** | Menjaga `/api/cron/alpa`. Tanpa ini endpoint-nya menolak semua permintaan, dan penandaan alpa harian tidak jalan. Isi dengan teks acak panjang — mis. keluaran `openssl rand -hex 32`. Vercel mengirimkannya sendiri sebagai bearer token pada cron terjadwal. |
+| `ANDROID_PACKAGE` `ANDROID_FINGERPRINTS` | tidak | Hanya bila aplikasi dibungkus jadi APK — lihat `PANDUAN-APK.md` |
 
 `NEXT_PUBLIC_JAM_MASUK`, `NEXT_PUBLIC_JAM_PULANG`, dan
 `NEXT_PUBLIC_TOLERANSI_MENIT` hanya dipakai sebagai cadangan sebelum admin

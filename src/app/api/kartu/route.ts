@@ -16,6 +16,25 @@ export const dynamic = "force-dynamic";
 const DETIK_ANTI_GANDA = 20;
 
 /**
+ * Jarak minimum antara absen masuk dan absen pulang, dalam menit.
+ *
+ * Ini lantai yang tidak bisa diturunkan admin, dan alasannya kejadian nyata:
+ * kartu yang disandarkan di depan kamera kios terus terbaca, kios mengirimnya
+ * ulang tiap beberapa detik, dan begitu jendela anti-ganda lewat, kiriman
+ * berikutnya dianggap absen pulang. Peserta tercatat bekerja dua puluh detik,
+ * lalu absen pulangnya yang sungguhan ditolak karena harinya sudah "lengkap".
+ *
+ * Tidak ada orang yang pulang lima menit setelah datang. Kalau pindaian kedua
+ * masuk dalam rentang ini, sebabnya hampir pasti "kartunya masih di situ" —
+ * jadi diperlakukan sebagai pindaian berulang, bukan absen pulang.
+ *
+ * `minJedaMenit` dari Pengaturan Absensi tetap dihormati bila lebih besar,
+ * dengan perlakuan berbeda: itu aturan yang admin sengaja pasang, jadi
+ * pelanggarannya dijawab pesan yang menjelaskan, bukan didiamkan.
+ */
+const MIN_MENIT_PULANG = 5;
+
+/**
  * Sejauh mana sebuah pindaian boleh dicatat mundur.
  *
  * Dipakai antrean offline di kios: kalau koneksi tersendat saat jam sibuk,
@@ -329,10 +348,28 @@ async function catat(
       { merge: true }
     );
   } else if (!ada?.jamPulang) {
-    const menitMasuk = ada.jamMasuk?.toDate
-      ? waktuLokal(cfg.zonaWaktu, ada.jamMasuk.toDate()).menit
-      : 0;
-    if (cfg.minJedaMenit > 0 && menit - menitMasuk < cfg.minJedaMenit) {
+    // Dihitung dari stempel waktunya, bukan dari menit-ke-berapa dalam sehari,
+    // supaya tetap benar untuk pindaian yang dikirim mundur dari antrean.
+    const detikSejakMasuk = ada.jamMasuk?.toDate
+      ? (saat.getTime() - ada.jamMasuk.toDate().getTime()) / 1000
+      : Infinity;
+
+    // Lantai yang tidak bisa diturunkan: kartu yang tertinggal di depan kamera
+    // tidak boleh berakhir sebagai absen pulang. Dijawab seperti pindaian
+    // berulang — operator tidak perlu tahu, karena tidak ada yang salah.
+    if (detikSejakMasuk < MIN_MENIT_PULANG * 60) {
+      return NextResponse.json({
+        mode: "masuk",
+        status: ada.status,
+        jam: waktuLokal(cfg.zonaWaktu, ada.jamMasuk.toDate()).jam,
+        nama: user.name || "Peserta",
+        foto: user.foto || null,
+        diulang: true,
+      });
+    }
+
+    // Aturan yang admin pasang sendiri: dijelaskan, bukan didiamkan.
+    if (cfg.minJedaMenit > 0 && detikSejakMasuk < cfg.minJedaMenit * 60) {
       throw new KesalahanAbsen(
         `${user.name || "Peserta"} baru masuk. Absen pulang bisa dilakukan ${cfg.minJedaMenit} menit setelah masuk.`,
         412

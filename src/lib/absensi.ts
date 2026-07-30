@@ -10,11 +10,28 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-// ---- Tanggal lokal format YYYY-MM-DD ----
-export function tanggalHariIni(): string {
-  const d = new Date();
-  const off = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - off).toISOString().slice(0, 10);
+/**
+ * Zona waktu kantor.
+ *
+ * Dulu tanggal di sisi browser diambil dari zona waktu perangkat, sementara
+ * seluruh penulisan di server memakai zona kantor. Di komputer kios yang zonanya
+ * belum pernah disetel — dan itu sering — pukul 06.30 WIB layar masih membaca
+ * tanggal kemarin, sehingga semua yang datang pagi tampak belum absen padahal
+ * catatannya sudah ada.
+ *
+ * Sekarang kedua sisi bicara dalam zona yang sama, apa pun setelan komputernya.
+ */
+const ZONA = process.env.NEXT_PUBLIC_ZONA_WAKTU || "Asia/Jakarta";
+
+/** Tanggal hari ini menurut zona kantor, format YYYY-MM-DD. */
+export function tanggalHariIni(saat: Date = new Date()): string {
+  // en-CA memberi bentuk YYYY-MM-DD apa adanya, tanpa perlu disusun ulang
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ZONA,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(saat);
 }
 
 // ================= Konfigurasi =================

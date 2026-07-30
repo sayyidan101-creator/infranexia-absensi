@@ -1,17 +1,7 @@
 "use client";
 import type { Kegiatan } from "@/lib/aktivitas";
 
-/** Lolos karakter HTML agar tulisan peserta tidak merusak tata letak logbook. */
-function e(teks: unknown): string {
-  return String(teks ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-/** Ganti baris baru jadi <br> setelah dilolos, supaya paragraf peserta tetap utuh. */
-function baris(teks: unknown): string {
-  return e(teks).replace(/\r?\n/g, "<br />");
-}
+import { lolos as e, lolosBaris as baris, sumberGambarAman } from "@/lib/aman";
 
 const tglPanjang = (s: string) => {
   const d = new Date(s + "T00:00:00");
@@ -56,7 +46,9 @@ export function logbookHtml(d: DataLogbook): string {
                 : ""}
             </td>
             <td class="bukti">
-              ${gambar ? `<img src="${gambar}" alt="" />` : `<span class="tanpa">—</span>`}
+              ${sumberGambarAman(gambar)
+                ? `<img src="${sumberGambarAman(gambar)}" alt="" />`
+                : `<span class="tanpa">—</span>`}
             </td>
             <td class="status">${k.status === "diperiksa" ? "Diperiksa" : "Menunggu"}</td>
           </tr>`;

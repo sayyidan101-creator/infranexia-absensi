@@ -1,4 +1,5 @@
 "use client";
+import { CSP_CETAK } from "@/lib/aman";
 
 /**
  * Ekspor ke .xlsx asli.
@@ -36,14 +37,38 @@ export async function unduhXlsx(
   XLSX.writeFile(buku, namaBerkas.endsWith(".xlsx") ? namaBerkas : `${namaBerkas}.xlsx`);
 }
 
-/** Cetak isi HTML lewat jendela baru — dipakai untuk laporan & sertifikat. */
+/**
+ * Sisipkan kebijakan keamanan ke dalam dokumen cetak.
+ *
+ * Diletakkan tepat sesudah `<head>` supaya berlaku atas seluruh isi. Kalau
+ * cetakannya belum punya `<head>` — misalnya cuplikan HTML sederhana — meta-nya
+ * ditaruh di depan, dan browser tetap membacanya karena ia yang pertama.
+ */
+export function denganCsp(isi: string): string {
+  if (isi.includes("Content-Security-Policy")) return isi;
+  const kepala = /<head(\s[^>]*)?>/i;
+  return kepala.test(isi) ? isi.replace(kepala, (m) => m + CSP_CETAK) : CSP_CETAK + isi;
+}
+
+/**
+ * Cetak isi HTML lewat jendela baru — dipakai untuk laporan & sertifikat.
+ *
+ * Jendela ini dibuka dari `about:blank`, yang **mewarisi origin aplikasi**.
+ * Artinya skrip apa pun yang lolos ke dalam `isi` berjalan sebagai pengguna
+ * yang menekan Cetak, dengan akses ke token loginnya. Karena bahan cetakan
+ * berasal dari data yang diisi peserta, `CSP_CETAK` dipasang sebagai penjaga:
+ * seluruh skrip dimatikan di dokumen ini, termasuk penangan `onerror` di
+ * atribut gambar.
+ *
+ * Ini lapis kedua, bukan pengganti meloloskan karakter di tempatnya.
+ */
 export function cetakHtml(judul: string, isi: string) {
   const w = window.open("", "_blank");
   if (!w) {
     alert("Jendela cetak diblokir browser. Izinkan pop-up untuk situs ini lalu coba lagi.");
     return;
   }
-  w.document.write(isi);
+  w.document.write(denganCsp(isi));
   w.document.title = judul;
   w.document.close();
   w.focus();
