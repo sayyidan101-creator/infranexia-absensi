@@ -34,7 +34,7 @@ self.addEventListener("fetch", (event) => {
     return; // biarkan browser menanganinya seperti biasa
   }
 
-  // Berkas statis (JS, CSS, gambar, model wajah) boleh dilayani dari cache
+  // Berkas statis (JS, CSS, gambar, ikon) boleh dilayani dari cache
   // lebih dulu karena namanya sudah mengandung hash versi.
   event.respondWith(
     (async () => {

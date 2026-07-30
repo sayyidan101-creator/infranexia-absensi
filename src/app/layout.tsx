@@ -15,7 +15,14 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
   icons: {
-    icon: "/icon-192.png",
+    // Kedua ukuran disebut, bukan hanya 192. Chrome baru menawarkan pemasangan
+    // bila ada ikon 192 DAN 512, dan Android memilih yang paling mendekati
+    // kerapatan layarnya — tanpa yang 512, ikon di layar utama diperbesar
+    // paksa dari 192 dan terlihat kabur.
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
     apple: "/apple-icon.png",
   },
   formatDetection: { telephone: false },

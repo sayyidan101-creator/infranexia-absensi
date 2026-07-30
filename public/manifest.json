@@ -1,7 +1,11 @@
 {
+  "id": "/",
   "name": "InfraNexia Absensi Magang",
   "short_name": "InfraNexia",
-  "description": "Sistem absensi anak magang berbasis pengenalan wajah",
+  "description": "Absensi peserta magang dengan kartu QR, catatan kegiatan harian, dan pengajuan izin.",
+  "lang": "id",
+  "dir": "ltr",
+  "categories": ["productivity", "business"],
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,8 +13,31 @@
   "background_color": "#0a1f44",
   "theme_color": "#0a1f44",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Pindai Kartu",
+      "short_name": "Pindai",
+      "description": "Buka kios pemindai kartu absen",
+      "url": "/kios",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Catatan Kegiatan",
+      "short_name": "Kegiatan",
+      "description": "Tulis kegiatan hari ini",
+      "url": "/kegiatan",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Izin & Sakit",
+      "short_name": "Izin",
+      "description": "Ajukan izin atau lihat pengajuan",
+      "url": "/izin",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }
