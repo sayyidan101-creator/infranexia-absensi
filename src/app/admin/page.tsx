@@ -381,10 +381,17 @@ function AdminInner() {
         </div>
       </div>
 
-      {/* Pagination */}
-      <div className="card flex flex-col xs:flex-row items-center justify-between gap-3 px-4 py-3.5 anim-fade-up d-4">
+      {/*
+        Pagination.
+
+        Di layar ponsel keterangan dan tombolnya ditumpuk, lalu tombolnya
+        dirapatkan ke kiri. Alasannya bukan selera: tombol tambah melayang di
+        pojok kanan bawah, dan kalau tombol halaman ikut rapat kanan, tombol
+        "berikutnya" berada persis di bawahnya — tidak bisa ditekan sama sekali.
+      */}
+      <div className="card flex flex-col gap-3 px-4 py-3.5 anim-fade-up d-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-gray-500">Menampilkan {view.length} dari {filtered.length} data</p>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={hal === 1} className="w-9 h-9 rounded-xl border border-gray-200 disabled:opacity-40 press hover:bg-gray-50">‹</button>
           {Array.from({ length: totalHal }).slice(0, 4).map((_, i) => (
             <button key={i} onClick={() => setPage(i + 1)} className={`w-9 h-9 rounded-xl text-sm press transition ${hal === i + 1 ? "bg-navy-900 text-white" : "border border-gray-200 hover:bg-gray-50"}`}>{i + 1}</button>
@@ -393,6 +400,15 @@ function AdminInner() {
           <button onClick={() => setPage((p) => Math.min(totalHal, p + 1))} disabled={hal === totalHal} className="w-9 h-9 rounded-xl border border-gray-200 disabled:opacity-40 press hover:bg-gray-50">›</button>
         </div>
       </div>
+
+      {/*
+        Ruang kosong setinggi tombol melayang.
+
+        Tanpa ini, isi terakhir halaman berhenti tepat di belakang tombol itu
+        dan tidak bisa digeser lebih jauh — apa pun yang ada di sana tertutup
+        permanen. Hanya di ponsel; di layar lebar tombolnya memang tidak ada.
+      */}
+      <div className="md:hidden h-32" aria-hidden />
 
       {/* FAB tambah (mobile) */}
       {bisaKelola && (
