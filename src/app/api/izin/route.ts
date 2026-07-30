@@ -12,14 +12,32 @@ export const dynamic = "force-dynamic";
 const JENIS = ["izin", "sakit"] as const;
 const MAKS_HARI = 30;
 
+/** Foto sudah dikecilkan di browser; batas ini menjaga dari kiriman tak wajar. */
+const MAKS_BUKTI_BYTE = 260_000;
+
+/**
+ * Mulai berapa hari sakit surat dokter menjadi wajib.
+ *
+ * Sakit sehari tidak diminta surat: menyuruh orang demam pergi ke klinik demi
+ * selembar kertas lebih menyusahkan daripada risiko yang ditutupnya. Dua hari
+ * ke atas sudah cukup panjang untuk perlu keterangan pihak ketiga, dan itu
+ * pula yang lazim diminta institusi.
+ */
+const WAJIB_SURAT_SEJAK_HARI = 2;
+
 /**
  * Pengajuan dan pemrosesan izin/sakit.
  *
- * body.aksi = "ajukan" | "proses" | "batal"
+ * body.aksi = "ajukan" | "lampirkan" | "hapusBukti" | "proses" | "batal"
  *
  * Saat disetujui, sistem sekaligus menuliskan catatan absensi untuk setiap
  * tanggal dalam rentang. Itu sebabnya penulisannya harus lewat server:
  * koleksi absensi tertutup dari browser.
+ *
+ * Foto surat dokter disimpan di koleksi terpisah `izinBukti`, tidak menempel
+ * pada dokumen pengajuannya. Daftar izin dibaca utuh setiap kali halaman
+ * dibuka — kalau fotonya ikut, membuka daftar berisi tiga puluh pengajuan
+ * berarti mengunduh berpuluh megabita gambar yang belum tentu dilihat.
  */
 export async function POST(req: Request) {
   try {
@@ -27,6 +45,8 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
 
     if (body?.aksi === "ajukan") return await ajukan(uid, body);
+    if (body?.aksi === "lampirkan") return await lampirkan(uid, body);
+    if (body?.aksi === "hapusBukti") return await hapusBukti(uid, body);
     if (body?.aksi === "proses") return await proses(uid, body);
     if (body?.aksi === "batal") return await batal(uid, body);
 
@@ -56,6 +76,42 @@ function rentangTanggal(mulai: string, selesai: string): string[] {
     }
   }
   return keluar;
+}
+
+// ---------- Bukti surat dokter ----------
+
+/** Terima hanya gambar, dan hanya yang seukuran wajar. */
+function periksaBukti(nilai: unknown): string {
+  const bukti = typeof nilai === "string" ? nilai.trim() : "";
+  if (!bukti) return "";
+  if (!bukti.startsWith("data:image/")) {
+    throw new KesalahanAbsen("Bukti harus berupa foto. Berkas PDF belum didukung.");
+  }
+  if (bukti.length > MAKS_BUKTI_BYTE) {
+    throw new KesalahanAbsen(
+      "Foto surat terlalu besar. Ambil ulang dengan kualitas lebih rendah."
+    );
+  }
+  return bukti;
+}
+
+/**
+ * Apakah pengajuan ini menuntut surat dokter.
+ *
+ * Diletakkan di server, bukan hanya di tombol, karena aturan yang cuma hidup
+ * di antarmuka bisa dilewati siapa pun yang memanggil API-nya langsung.
+ */
+function wajibSurat(jenis: string, jumlahHari: number): boolean {
+  return jenis === "sakit" && jumlahHari >= WAJIB_SURAT_SEJAK_HARI;
+}
+
+async function simpanBukti(izinId: string, pemilik: string, bukti: string) {
+  await adminDb().doc(`izinBukti/${izinId}`).set({
+    izinId,
+    userId: pemilik,
+    foto: bukti,
+    diunggahPada: FieldValue.serverTimestamp(),
+  });
 }
 
 // ---------- Ajukan ----------
@@ -99,7 +155,19 @@ async function ajukan(uid: string, d: any) {
     }
   }
 
-  const ref = await adminDb().collection("izin").add({
+  const bukti = periksaBukti(d?.bukti);
+  if (!bukti && wajibSurat(jenis, tanggal.length)) {
+    throw new KesalahanAbsen(
+      `Sakit ${tanggal.length} hari wajib melampirkan foto surat dokter.`,
+      412
+    );
+  }
+
+  // Ref dibuat lebih dulu supaya foto dan pengajuannya memakai id yang sama
+  const ref = adminDb().collection("izin").doc();
+  if (bukti) await simpanBukti(ref.id, uid, bukti);
+
+  await ref.set({
     userId: uid,
     nama: user.name || "Pengguna",
     jenis,
@@ -108,11 +176,65 @@ async function ajukan(uid: string, d: any) {
     tanggalSelesai: tanggal[tanggal.length - 1],
     tanggal,
     jumlahHari: tanggal.length,
+    adaBukti: !!bukti,
     status: "menunggu",
     diajukanPada: FieldValue.serverTimestamp(),
   });
 
-  return NextResponse.json({ id: ref.id, jumlahHari: tanggal.length });
+  return NextResponse.json({ id: ref.id, jumlahHari: tanggal.length, adaBukti: !!bukti });
+}
+
+// ---------- Lampirkan susulan ----------
+
+/**
+ * Menambah atau mengganti surat selama pengajuan belum diputus.
+ *
+ * Tanpa ini, peserta yang lupa melampirkan harus membatalkan lalu mengajukan
+ * ulang — dan pembatalan menghapus riwayatnya, sehingga pembimbing kehilangan
+ * jejak bahwa pengajuan itu pernah ada.
+ */
+async function lampirkan(uid: string, d: any) {
+  const { ref, izin } = await miliknyaDanMenunggu(uid, d);
+  const bukti = periksaBukti(d?.bukti);
+  if (!bukti) throw new KesalahanAbsen("Tidak ada foto yang dikirim.");
+
+  await simpanBukti(ref.id, izin.userId, bukti);
+  await ref.set({ adaBukti: true }, { merge: true });
+
+  return NextResponse.json({ ok: true, adaBukti: true });
+}
+
+// ---------- Hapus bukti ----------
+async function hapusBukti(uid: string, d: any) {
+  const { ref, izin } = await miliknyaDanMenunggu(uid, d);
+  if (wajibSurat(izin.jenis, izin.jumlahHari || 0)) {
+    throw new KesalahanAbsen(
+      "Surat dokter wajib untuk pengajuan ini. Ganti fotonya, jangan dihapus.",
+      412
+    );
+  }
+
+  await adminDb().doc(`izinBukti/${ref.id}`).delete();
+  await ref.set({ adaBukti: false }, { merge: true });
+
+  return NextResponse.json({ ok: true, adaBukti: false });
+}
+
+/** Pengajuan milik pemanggil yang statusnya masih menunggu. */
+async function miliknyaDanMenunggu(uid: string, d: any) {
+  const id = String(d?.id || "");
+  if (!id) throw new KesalahanAbsen("ID pengajuan wajib diisi.");
+
+  const ref = adminDb().doc(`izin/${id}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new KesalahanAbsen("Pengajuan tidak ditemukan.", 404);
+  const izin = snap.data() as any;
+
+  if (izin.userId !== uid) throw new KesalahanAbsen("Ini bukan pengajuanmu.", 403);
+  if (izin.status !== "menunggu") {
+    throw new KesalahanAbsen("Pengajuan yang sudah diproses tidak bisa diubah.", 409);
+  }
+  return { ref, izin };
 }
 
 // ---------- Proses (setujui / tolak) ----------
@@ -184,7 +306,9 @@ async function proses(uid: string, d: any) {
     namaPelaku: (pembina.data() as any).name || "",
     sasaran: izin.userId,
     namaSasaran: izin.nama || "",
-    rincian: `${izin.jenis} ${izin.tanggalMulai}–${izin.tanggalSelesai} (${izin.jumlahHari} hari)`,
+    rincian:
+      `${izin.jenis} ${izin.tanggalMulai}–${izin.tanggalSelesai} (${izin.jumlahHari} hari)` +
+      (izin.jenis === "sakit" ? (izin.adaBukti ? ", ada surat dokter" : ", tanpa surat") : ""),
   });
 
   return NextResponse.json({ ok: true, keputusan, dicatat, hariIni });
@@ -192,19 +316,11 @@ async function proses(uid: string, d: any) {
 
 // ---------- Batalkan pengajuan sendiri ----------
 async function batal(uid: string, d: any) {
-  const id = String(d?.id || "");
-  if (!id) throw new KesalahanAbsen("ID pengajuan wajib diisi.");
+  const { ref } = await miliknyaDanMenunggu(uid, d);
 
-  const ref = adminDb().doc(`izin/${id}`);
-  const snap = await ref.get();
-  if (!snap.exists) throw new KesalahanAbsen("Pengajuan tidak ditemukan.", 404);
-  const izin = snap.data() as any;
-
-  if (izin.userId !== uid) throw new KesalahanAbsen("Ini bukan pengajuanmu.", 403);
-  if (izin.status !== "menunggu") {
-    throw new KesalahanAbsen("Pengajuan yang sudah diproses tidak bisa dibatalkan.", 409);
-  }
-
+  // Fotonya ikut dibuang. Kalau ditinggal, dokumen surat dokter menumpuk tanpa
+  // pemilik — dan itu data kesehatan orang, bukan sisa berkas biasa.
+  await adminDb().doc(`izinBukti/${ref.id}`).delete();
   await ref.delete();
   return NextResponse.json({ ok: true });
 }

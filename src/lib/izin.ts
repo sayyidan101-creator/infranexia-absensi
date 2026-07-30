@@ -1,5 +1,5 @@
 import {
-  collection, getDocs, query, where, limit, Timestamp,
+  collection, doc, getDoc, getDocs, query, where, limit, Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { panggilApi } from "@/lib/api";
@@ -17,6 +17,8 @@ export interface Izin {
   tanggalSelesai: string;
   tanggal: string[];
   jumlahHari: number;
+  /** Ada foto surat dokter di koleksi `izinBukti`. Fotonya sendiri tidak di sini. */
+  adaBukti?: boolean;
   status: StatusIzin;
   catatan?: string;
   namaPemroses?: string;
@@ -24,13 +26,44 @@ export interface Izin {
   diprosesPada?: Timestamp;
 }
 
+/**
+ * Mulai berapa hari sakit surat dokter menjadi wajib.
+ * Harus sama dengan angka di `/api/izin`; ini hanya untuk memberi tahu lebih
+ * awal, bukan untuk menegakkan aturannya.
+ */
+export const WAJIB_SURAT_SEJAK_HARI = 2;
+
+export function wajibSurat(jenis: JenisIzin, jumlahHari: number): boolean {
+  return jenis === "sakit" && jumlahHari >= WAJIB_SURAT_SEJAK_HARI;
+}
+
 export async function ajukanIzin(data: {
   jenis: JenisIzin;
   alasan: string;
   tanggalMulai: string;
   tanggalSelesai: string;
-}): Promise<{ id: string; jumlahHari: number }> {
+  /** Data URL foto surat dokter, sudah dikecilkan di browser. */
+  bukti?: string;
+}): Promise<{ id: string; jumlahHari: number; adaBukti: boolean }> {
   return panggilApi("/api/izin", { aksi: "ajukan", ...data });
+}
+
+/** Menambah atau mengganti surat pada pengajuan yang masih menunggu. */
+export async function lampirkanBukti(id: string, bukti: string): Promise<void> {
+  await panggilApi("/api/izin", { aksi: "lampirkan", id, bukti });
+}
+
+export async function hapusBuktiIzin(id: string): Promise<void> {
+  await panggilApi("/api/izin", { aksi: "hapusBukti", id });
+}
+
+/**
+ * Foto surat satu pengajuan, diambil hanya saat pengajuannya dibuka.
+ * Inilah alasan fotonya disimpan di koleksi terpisah.
+ */
+export async function buktiIzin(id: string): Promise<string> {
+  const snap = await getDoc(doc(db, "izinBukti", id));
+  return snap.exists() ? String((snap.data() as any).foto || "") : "";
 }
 
 export async function prosesIzin(

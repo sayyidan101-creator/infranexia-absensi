@@ -79,6 +79,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Foto surat dokter, dipisah dari pengajuannya. Dua alasannya bertumpuk:
+    // daftar izin tetap ringan dibuka, dan keterangan medis hanya terbaca saat
+    // satu pengajuan benar-benar dibuka — bukan ikut terunduh tiap kali
+    // halaman dimuat. `list` ditutup rapat: tidak ada yang boleh menyapu
+    // seluruh surat dokter sekaligus.
+    match /izinBukti/{izinId} {
+      allow get: if login() && (isPembina() || resource == null || resource.data.userId == uid());
+      allow list: if false;
+      allow write: if false;
+    }
+
     // ---------- kegiatan harian ----------
     // Dibaca peserta yang bersangkutan dan seluruh pembina; ditulis hanya lewat
     // API route, supaya batas menulis mundur dan penguncian setelah diperiksa
