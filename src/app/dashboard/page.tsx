@@ -312,7 +312,8 @@ function DashAdmin({ nama }: { nama: string }) {
   useEffect(() => { muat(); }, []);
 
   // Pantau absensi hari ini secara langsung: angka berubah sendiri saat ada
-  // yang absen, tanpa perlu menekan Perbarui.
+  // yang absen. Karena itu tidak ada tombol perbarui di halaman ini — tombol
+  // yang tidak pernah dibutuhkan hanya mengundang orang menekannya sia-sia.
   useEffect(() => {
     if (magangAktif.length === 0) return;
     const berhenti = pantauAbsensiHariIni(
@@ -336,7 +337,7 @@ function DashAdmin({ nama }: { nama: string }) {
   return (
     <div className="space-y-5 md:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 anim-fade-up">
+      <div className="anim-fade-up">
         <div>
           <Clock />
           <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {nama.split(" ")[0]}</h1>
@@ -350,13 +351,6 @@ function DashAdmin({ nama }: { nama: string }) {
             )}
           </p>
         </div>
-        <button onClick={muat} disabled={loading}
-          className="self-start inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs font-medium text-navy-900 press hover:bg-gray-50 disabled:opacity-50">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={loading ? "animate-spin" : ""}>
-            <path d="M21 12a9 9 0 1 1-6.22-8.56" /><path d="M21 3v6h-6" />
-          </svg>
-          Perbarui
-        </button>
       </div>
 
       {/* Ringkasan kehadiran */}
@@ -529,7 +523,7 @@ function DashPembina({ nama }: { nama: string }) {
   return (
     <div className="space-y-5 md:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 anim-fade-up">
+      <div className="anim-fade-up">
         <div>
           <Clock />
           <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {nama.split(" ")[0]}</h1>
@@ -543,13 +537,6 @@ function DashPembina({ nama }: { nama: string }) {
             )}
           </p>
         </div>
-        <button onClick={muat} disabled={loading}
-          className="self-start inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-xs font-medium text-navy-900 press hover:bg-gray-50 disabled:opacity-50">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={loading ? "animate-spin" : ""}>
-            <path d="M21 12a9 9 0 1 1-6.22-8.56" /><path d="M21 3v6h-6" />
-          </svg>
-          Perbarui
-        </button>
       </div>
 
       {galat && <Pesan tipe="err">{galat}</Pesan>}
