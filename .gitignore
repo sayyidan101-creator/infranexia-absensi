@@ -15,6 +15,18 @@ tsconfig.tsbuildinfo
 *firebase-adminsdk*.json
 serviceAccountKey.json
 
+# Kunci penanda tangan aplikasi Android — sama gawatnya dengan kredensial di
+# atas, tapi dengan satu bahaya tambahan: kalau berkas ini HILANG, aplikasi
+# yang sudah dipasang orang tidak bisa diperbarui lagi, selamanya. Simpan
+# salinannya di luar Git, di tempat yang tidak ikut terhapus bersama proyek.
+*.keystore
+*.jks
+
+# Keluaran Bubblewrap dan Android — dibuat ulang setiap kali build
+*.apk
+*.aab
+/android/
+
 # Log & berkas sistem
 *.log
 npm-debug.log*

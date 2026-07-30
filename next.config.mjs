@@ -8,6 +8,13 @@ const nextConfig = {
     return [{ source: "/register", destination: "/login", permanent: false }];
   },
 
+  // Chrome mencari Digital Asset Links tepat di alamat ini dan tidak di tempat
+  // lain. Segmen route yang diawali titik tidak bisa dipakai di App Router,
+  // jadi jalurnya dialihkan ke API biasa.
+  async rewrites() {
+    return [{ source: "/.well-known/assetlinks.json", destination: "/api/assetlinks" }];
+  },
+
   experimental: {
     // firebase-admin hanya dipakai di API route; jangan ikut dibundel.
     // Di Next.js 15 opsi ini bernama `serverExternalPackages` (tanpa experimental).
