@@ -38,6 +38,55 @@ export const LABEL_AKSI: Record<string, string> = {
 /** Tindakan yang pantas menonjol karena tidak bisa dibatalkan. */
 export const AKSI_BERAT = new Set(["akun.hapus", "data.bersihkan", "kartu.cabut"]);
 
+export interface PeriksaEnv {
+  terpasang: boolean;
+  kosong: boolean | null;
+  panjang: number;
+}
+
+export interface StatusServer {
+  waktuServer: string;
+  zonaServer: string;
+  projectIdAplikasi: string | null;
+  emailTerkonfigurasi: boolean;
+  deployment: {
+    lingkungan: string;
+    commit: string | null;
+    pesanCommit: string | null;
+    wilayah: string | null;
+  };
+  env: Record<string, PeriksaEnv>;
+  namaMiripCron: string[];
+  serviceAccount: {
+    terpasang: boolean;
+    formatValid?: boolean;
+    projectId?: string | null;
+    cocokDenganAplikasi?: boolean;
+    punyaPrivateKey?: boolean;
+    masalah: string | null;
+  };
+  koneksiFirebase?: { ok: boolean; kode?: string | null; masalah: string | null };
+}
+
+/**
+ * Laporan konfigurasi server.
+ *
+ * Lewat POST, bukan GET, karena `panggilApi` menyertakan token login — dan
+ * laporan ini hanya untuk admin. Alamat GET-nya sekarang tinggal menjawab
+ * "server hidup" saja; sebelumnya ia terbuka penuh untuk siapa pun.
+ */
+export async function ambilStatusServer(): Promise<StatusServer> {
+  return panggilApi<StatusServer>("/api/status", {});
+}
+
+/** Variabel wajib yang tidak terbaca atau terbaca kosong. */
+export function envBermasalah(s: StatusServer): string[] {
+  const wajib = ["CRON_SECRET", "FIREBASE_SERVICE_ACCOUNT"];
+  return Object.entries(s.env || {})
+    .filter(([nama, v]) => wajib.includes(nama) && (!v.terpasang || v.kosong))
+    .map(([nama]) => nama);
+}
+
 export async function ambilJejak(batas = 100): Promise<BarisJejak[]> {
   const r = await panggilApi<{ jejak: BarisJejak[] }>("/api/users", { aksi: "jejak", batas });
   return r.jejak;

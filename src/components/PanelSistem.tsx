@@ -4,10 +4,32 @@ import { Pesan, Kosong, Skeleton, Segmen } from "@/components/ui";
 import { pesanError } from "@/lib/users";
 import {
   ambilJejak, ambilGalat, hapusGalat, unduhCadangan, waktuRelatif,
-  LABEL_AKSI, AKSI_BERAT, BarisJejak, BarisGalat,
+  ambilStatusServer, envBermasalah,
+  LABEL_AKSI, AKSI_BERAT, BarisJejak, BarisGalat, StatusServer,
 } from "@/lib/sistem";
 
-type Tab = "jejak" | "galat";
+type Tab = "jejak" | "galat" | "konfigurasi";
+
+/** Satu baris pemeriksaan: hijau bila beres, merah bila perlu ditindak. */
+function Baris({ nama, ok, nilai, catatan }: { nama: string; ok: boolean; nilai: string; catatan?: string }) {
+  return (
+    <li className="flex items-start gap-3 py-2.5">
+      <span className={`w-4 h-4 rounded-full shrink-0 mt-0.5 flex items-center justify-center ${
+        ok ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
+      }`}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round">
+          {ok ? <path d="M20 6 9 17l-5-5" /> : <path d="M18 6 6 18M6 6l12 12" />}
+        </svg>
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-navy-900 leading-snug">
+          {nama} <span className="text-gray-400 font-normal">· {nilai}</span>
+        </p>
+        {catatan && <p className="text-[11px] text-gray-500 mt-0.5 break-words leading-relaxed">{catatan}</p>}
+      </div>
+    </li>
+  );
+}
 
 /**
  * Panel administrasi sistem: jejak audit, laporan galat, dan pencadangan.
@@ -21,6 +43,7 @@ export default function PanelSistem() {
   const [tab, setTab] = useState<Tab>("jejak");
   const [jejak, setJejak] = useState<BarisJejak[] | null>(null);
   const [galat, setGalat] = useState<BarisGalat[] | null>(null);
+  const [status, setStatus] = useState<StatusServer | null>(null);
   const [sibuk, setSibuk] = useState("");
   const [pesan, setPesan] = useState<{ t: "ok" | "err" | "info"; s: string } | null>(null);
 
@@ -29,7 +52,8 @@ export default function PanelSistem() {
     setPesan(null);
     try {
       if (mana === "jejak") setJejak(await ambilJejak());
-      else setGalat(await ambilGalat());
+      else if (mana === "galat") setGalat(await ambilGalat());
+      else setStatus(await ambilStatusServer());
     } catch (e: any) {
       setPesan({ t: "err", s: pesanError(e) });
     } finally { setSibuk(""); }
@@ -45,6 +69,7 @@ export default function PanelSistem() {
     setTab(t);
     if (t === "jejak" && !jejak) muat("jejak");
     if (t === "galat" && !galat) muat("galat");
+    if (t === "konfigurasi" && !status) muat("konfigurasi");
   };
 
   const cadangkan = async () => {
@@ -127,6 +152,7 @@ export default function PanelSistem() {
               opsi={[
                 { nilai: "jejak", label: "Jejak Audit" },
                 { nilai: "galat", label: "Laporan Galat", lencana: jumlahGalat },
+                { nilai: "konfigurasi", label: "Konfigurasi" },
               ]}
             />
             <button onClick={() => muat(tab)} disabled={!!sibuk}
@@ -200,6 +226,103 @@ export default function PanelSistem() {
                   {sibuk === "hapus" ? "Menghapus..." : "Kosongkan laporan"}
                 </button>
               </>
+            )
+          )}
+
+          {/* ---------- Konfigurasi server ---------- */}
+          {tab === "konfigurasi" && (
+            sibuk === "konfigurasi" && !status ? (
+              <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+            ) : !status ? (
+              <Kosong judul="Belum dimuat" pesan="Tekan Perbarui untuk membaca konfigurasi server." />
+            ) : (
+              <div className="space-y-4">
+                {(() => {
+                  const rusak = envBermasalah(status);
+                  return rusak.length > 0 ? (
+                    <Pesan tipe="err">
+                      {rusak.join(" dan ")} tidak terbaca server. Isi nilainya di Vercel, lalu{" "}
+                      <b>Redeploy</b> — variabel baru tidak berlaku pada deployment yang sudah jalan.
+                    </Pesan>
+                  ) : (
+                    <Pesan tipe="ok">Seluruh variabel wajib terbaca. Tidak ada yang perlu ditindak.</Pesan>
+                  );
+                })()}
+
+                <ul className="divide-y divide-gray-100">
+                  {Object.entries(status.env).map(([nama, v]) => {
+                    const wajib = nama === "CRON_SECRET" || nama === "FIREBASE_SERVICE_ACCOUNT";
+                    const beres = v.terpasang && !v.kosong;
+                    return (
+                      <Baris
+                        key={nama}
+                        nama={nama}
+                        ok={beres || !wajib}
+                        nilai={
+                          !v.terpasang ? "belum ada"
+                            : v.kosong ? "ada tapi kosong"
+                            : `${v.panjang} karakter`
+                        }
+                        catatan={
+                          !v.terpasang && !wajib
+                            ? "Opsional — belum diperlukan."
+                            : v.kosong
+                            ? "Nilainya kosong. Server memperlakukan ini sama dengan belum diatur."
+                            : undefined
+                        }
+                      />
+                    );
+                  })}
+
+                  <Baris
+                    nama="Kunci service account"
+                    ok={!!status.serviceAccount.terpasang && !status.serviceAccount.masalah}
+                    nilai={
+                      !status.serviceAccount.terpasang ? "belum ada"
+                        : status.serviceAccount.formatValid === false ? "format tidak terbaca"
+                        : status.serviceAccount.cocokDenganAplikasi ? "cocok dengan project"
+                        : "project berbeda"
+                    }
+                    catatan={status.serviceAccount.masalah || undefined}
+                  />
+
+                  {status.koneksiFirebase && (
+                    <Baris
+                      nama="Koneksi Firebase"
+                      ok={status.koneksiFirebase.ok}
+                      nilai={status.koneksiFirebase.ok ? "tersambung" : "gagal"}
+                      catatan={status.koneksiFirebase.masalah || undefined}
+                    />
+                  )}
+
+                  <Baris
+                    nama="Pengiriman email"
+                    ok
+                    nilai={status.emailTerkonfigurasi ? "aktif" : "tidak aktif"}
+                    catatan={
+                      status.emailTerkonfigurasi
+                        ? undefined
+                        : "Opsional. Tanpa ini, kredensial akun baru harus diberikan manual."
+                    }
+                  />
+                </ul>
+
+                <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3.5 space-y-1">
+                  <p className="text-xs font-semibold text-navy-900">Deployment yang sedang melayani</p>
+                  <p className="text-[11px] text-gray-600 break-words leading-relaxed">
+                    {status.deployment.lingkungan}
+                    {status.deployment.commit ? ` · commit ${status.deployment.commit}` : ""}
+                    {status.deployment.wilayah ? ` · ${status.deployment.wilayah}` : ""}
+                  </p>
+                  {status.deployment.pesanCommit && (
+                    <p className="text-[11px] text-gray-500 break-words">“{status.deployment.pesanCommit}”</p>
+                  )}
+                  <p className="text-[11px] text-gray-400 pt-1">
+                    Zona waktu server: {status.zonaServer} · Nilai variabel tidak pernah ditampilkan di sini,
+                    hanya panjangnya.
+                  </p>
+                </div>
+              </div>
             )
           )}
         </div>

@@ -1,24 +1,43 @@
 import { NextResponse } from "next/server";
 import { adminAuth } from "@/server/firebaseAdmin";
+import { KesalahanAbsen, pastikanAdmin } from "@/server/absensi";
 import { emailAktif } from "@/server/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Halaman diagnosa konfigurasi server.
- * Sengaja tidak memerlukan login — kalau kredensial servernya bermasalah,
- * justru login-lah yang tidak bisa diverifikasi.
+ * Diagnosa konfigurasi server.
  *
- * Hanya menampilkan informasi yang memang sudah publik (project id) dan
- * status berupa ya/tidak. Kunci privat tidak pernah ikut ditampilkan.
+ * Dulu seluruh laporan ini terbuka tanpa login, dengan alasan yang sebenarnya
+ * masuk akal: kalau kredensial servernya rusak, justru login-lah yang tidak
+ * bisa diverifikasi — jadi diagnosa yang menuntut login akan mati bersama hal
+ * yang mau didiagnosa.
+ *
+ * Alasan itu benar, tapi harganya terlalu mahal: siapa pun di internet bisa
+ * membaca project id, pesan commit terakhir, dan nama-nama variabel server,
+ * sekaligus memicu panggilan ke Firebase Auth pada setiap permintaan sehingga
+ * kuotanya bisa dihabiskan orang luar.
+ *
+ * Sekarang keduanya dipisah menurut siapa yang bertanya:
+ *
+ *   GET  tanpa apa pun            → hanya "server hidup", tanpa satu pun rincian
+ *   GET  Bearer <CRON_SECRET>     → laporan penuh; jalan keluar darurat yang
+ *                                   tidak bergantung pada Firebase sama sekali
+ *   POST dengan token admin       → laporan penuh; dipakai panel Sistem
+ *
+ * Jalan darurat itu yang membuat alasan lama tetap terhormat: waktu Firebase
+ * tumbang dan tidak ada yang bisa login, `CRON_SECRET` masih cukup untuk
+ * membaca laporan ini dari terminal.
  */
+
 /**
  * Laporan keberadaan sebuah variabel lingkungan — tanpa nilainya.
  *
  * Yang dilaporkan hanya ada/tidak dan panjangnya. Panjang saja sudah cukup
  * membedakan tiga keadaan yang dari luar tampak sama: belum diisi sama sekali,
- * diisi tapi kosong, dan diisi benar.
+ * diisi tapi kosong, dan diisi benar. Ketiga keadaan itu pernah menghabiskan
+ * setengah jam justru karena tidak bisa dibedakan.
  */
 function periksaEnv(nama: string) {
   const nilai = process.env[nama];
@@ -26,7 +45,14 @@ function periksaEnv(nama: string) {
   return { terpasang: true, kosong: nilai.trim().length === 0, panjang: nilai.length };
 }
 
-export async function GET() {
+/** Apakah pemanggil membawa CRON_SECRET yang benar. */
+function bawaRahasia(req: Request): boolean {
+  const rahasia = process.env.CRON_SECRET;
+  if (!rahasia) return false;
+  return (req.headers.get("authorization") || "") === `Bearer ${rahasia}`;
+}
+
+async function laporanPenuh() {
   const hasil: Record<string, any> = {
     waktuServer: new Date().toISOString(),
     zonaServer: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -52,13 +78,7 @@ export async function GET() {
     wilayah: process.env.VERCEL_REGION || null,
   };
 
-  /**
-   * Variabel yang dibutuhkan aplikasi ini — nama dan panjangnya saja.
-   *
-   * Nama variabel bukan rahasia, dan justru nama inilah yang paling sering jadi
-   * biang masalah: satu spasi di ujung kolom Key tidak terlihat di antarmuka
-   * mana pun.
-   */
+  /** Variabel yang dibutuhkan aplikasi ini — nama dan panjangnya saja. */
   hasil.env = {
     CRON_SECRET: periksaEnv("CRON_SECRET"),
     FIREBASE_SERVICE_ACCOUNT: periksaEnv("FIREBASE_SERVICE_ACCOUNT"),
@@ -67,7 +87,8 @@ export async function GET() {
   };
 
   // Nama apa pun yang mirip. Kalau ada salah ketik atau spasi tersembunyi, ia
-  // muncul di sini lengkap dengan kurung siku yang memperlihatkan batasnya.
+  // muncul di sini lengkap dengan kurung siku yang memperlihatkan batasnya —
+  // satu spasi di ujung kolom Key tidak terlihat di antarmuka mana pun.
   hasil.namaMiripCron = Object.keys(process.env)
     .filter((k) => /cron|secret/i.test(k))
     .map((k) => `[${k}]`)
@@ -80,7 +101,7 @@ export async function GET() {
       terpasang: false,
       masalah: "FIREBASE_SERVICE_ACCOUNT belum ada di environment.",
     };
-    return NextResponse.json(hasil, { status: 200 });
+    return hasil;
   }
 
   try {
@@ -100,7 +121,7 @@ export async function GET() {
         ? null
         : "Project service account berbeda dengan project aplikasi. Unduh ulang kunci dari project yang benar.",
     };
-  } catch (e: any) {
+  } catch {
     hasil.serviceAccount = {
       terpasang: true,
       formatValid: false,
@@ -108,7 +129,7 @@ export async function GET() {
         "Isi FIREBASE_SERVICE_ACCOUNT tidak bisa dibaca. Biasanya karena base64 terpotong, " +
         "ada spasi/baris baru di tengah, atau terbungkus tanda kutip.",
     };
-    return NextResponse.json(hasil, { status: 200 });
+    return hasil;
   }
 
   // --- Uji koneksi sungguhan ke Firebase Auth ---
@@ -123,5 +144,39 @@ export async function GET() {
     };
   }
 
-  return NextResponse.json(hasil, { status: 200 });
+  return hasil;
+}
+
+/**
+ * Pemeriksaan hidup-mati untuk umum, dan jalan darurat bagi yang membawa
+ * `CRON_SECRET`.
+ *
+ * Jawaban tanpa rahasia sengaja sangat pendek. Ia cukup untuk memastikan
+ * aplikasinya menyala, dan tidak cukup untuk apa pun selain itu.
+ */
+export async function GET(req: Request) {
+  if (bawaRahasia(req)) {
+    return NextResponse.json(await laporanPenuh(), { status: 200 });
+  }
+  return NextResponse.json(
+    {
+      ok: true,
+      waktuServer: new Date().toISOString(),
+      keterangan: "Laporan lengkap hanya untuk admin — buka panel Sistem di halaman Kelola.",
+    },
+    { status: 200 }
+  );
+}
+
+/** Laporan penuh untuk panel Sistem. Hanya admin. */
+export async function POST(req: Request) {
+  try {
+    await pastikanAdmin(req);
+    return NextResponse.json(await laporanPenuh(), { status: 200 });
+  } catch (e: any) {
+    const status = e instanceof KesalahanAbsen ? e.status : 500;
+    const pesan = e instanceof KesalahanAbsen ? e.message : "Terjadi kesalahan di server.";
+    if (status === 500) console.error("[/api/status]", e);
+    return NextResponse.json({ pesan }, { status });
+  }
 }
