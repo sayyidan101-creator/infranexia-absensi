@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/server/firebaseAdmin";
 import { ambilKonfigurasiServer, waktuLokal } from "@/server/absensi";
+import { dalamPeriode } from "@/lib/periode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,11 +51,20 @@ export async function GET(req: Request) {
 
     const sasaran = usersSnap.docs.filter((d) => {
       const u = d.data() as any;
-      return (u.status || "aktif") === "aktif" && !sudahAda.has(d.id);
+      if ((u.status || "aktif") !== "aktif") return false;
+      if (sudahAda.has(d.id)) return false;
+      // Peserta yang belum mulai atau sudah selesai magang bukan "alpa" —
+      // dia memang tidak seharusnya ada di kantor hari itu.
+      return dalamPeriode(u, tanggal);
     });
 
+    const dinonaktifkan = await tutupPeriodeSelesai(usersSnap, tanggal);
+
     if (sasaran.length === 0) {
-      return NextResponse.json({ tanggal, ditandai: 0, pesan: "Semua peserta sudah punya catatan." });
+      return NextResponse.json({
+        tanggal, ditandai: 0, dinonaktifkan,
+        pesan: "Semua peserta sudah punya catatan.",
+      });
     }
 
     const batch = adminDb().batch();
@@ -77,10 +87,39 @@ export async function GET(req: Request) {
     return NextResponse.json({
       tanggal,
       ditandai: sasaran.length,
+      dinonaktifkan,
       nama: sasaran.map((d) => (d.data() as any).name || d.id),
     });
   } catch (e: any) {
     console.error("[/api/cron/alpa]", e);
     return NextResponse.json({ pesan: e?.message || "Gagal menandai alpa." }, { status: 500 });
   }
+}
+
+/**
+ * Nonaktifkan peserta yang periode magangnya sudah lewat.
+ *
+ * Dikerjakan di sini, bukan lewat penjadwalan terpisah, karena cron harian ini
+ * sudah berjalan tiap sore dan sudah memuat seluruh daftar peserta. Menambah
+ * satu jadwal lagi hanya untuk ini berarti satu hal lagi yang bisa lupa
+ * dipasang saat proyeknya dipindah.
+ */
+async function tutupPeriodeSelesai(usersSnap: any, tanggal: string): Promise<string[]> {
+  const habis = usersSnap.docs.filter((d: any) => {
+    const u = d.data() as any;
+    return (u.status || "aktif") === "aktif" && u.selesaiPada && u.selesaiPada < tanggal;
+  });
+  if (habis.length === 0) return [];
+
+  const batch = adminDb().batch();
+  habis.forEach((d: any) => {
+    batch.set(
+      d.ref,
+      { status: "nonaktif", dinonaktifkanPada: FieldValue.serverTimestamp(), alasanNonaktif: "periode magang selesai" },
+      { merge: true }
+    );
+  });
+  await batch.commit();
+
+  return habis.map((d: any) => (d.data() as any).name || d.id);
 }

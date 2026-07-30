@@ -12,6 +12,8 @@ export interface UserBaru {
   kampus?: string;
   jurusan?: string;
   telepon?: string;
+  mulaiPada?: string;
+  selesaiPada?: string;
 }
 
 export interface HasilBuatUser {
@@ -34,6 +36,8 @@ export interface UserUbah {
   kampus?: string;
   jurusan?: string;
   telepon?: string;
+  mulaiPada?: string;
+  selesaiPada?: string;
   status?: string;
 }
 

@@ -23,6 +23,13 @@ export class StempelPalsu {
 const HAPUS = Symbol("hapus-field");
 const STEMPEL = Symbol("stempel-server");
 
+/** Padanan `Timestamp` dari firebase-admin, secukupnya untuk kode ini. */
+export const TimestampPalsu = {
+  fromDate: (d: Date) => new StempelPalsu(d.getTime()),
+  fromMillis: (ms: number) => new StempelPalsu(ms),
+  now: () => new StempelPalsu(Date.now()),
+};
+
 export const FieldValuePalsu = {
   serverTimestamp: () => STEMPEL as any,
   delete: () => HAPUS as any,

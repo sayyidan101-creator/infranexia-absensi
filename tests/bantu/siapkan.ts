@@ -16,8 +16,8 @@ vi.mock("@/server/firebaseAdmin", async () => {
 });
 
 vi.mock("firebase-admin/firestore", async () => {
-  const { FieldValuePalsu } = await import("./firestorePalsu");
-  return { FieldValue: FieldValuePalsu };
+  const { FieldValuePalsu, TimestampPalsu } = await import("./firestorePalsu");
+  return { FieldValue: FieldValuePalsu, Timestamp: TimestampPalsu };
 });
 
 // SDK Firebase sisi klien menuntut kunci API yang sah begitu diimpor.

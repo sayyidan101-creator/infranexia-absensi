@@ -52,6 +52,8 @@ operator tinggal mengetikkan kode itu.
 | Menyalin pemetaan kartu | Pemetaan disimpan di koleksi tertutup, dicari lewat hash |
 | Kartu terpindai berulang | Pindaian dalam 20 detik dianggap satu kali |
 | Perangkat kios dibawa keluar kantor | Aktifkan geofencing di Pengaturan Absensi |
+| Absen di luar masa magang | Ditolak; periode tiap peserta diperiksa server |
+| Koneksi putus saat jam sibuk | Pindaian diantre di perangkat, dikirim ulang otomatis |
 
 > Titipan kartu adalah batas jujur sistem berbasis kartu. Kalau itu jadi masalah,
 > tambahkan verifikasi visual oleh operator kios — layar kios sudah menampilkan
@@ -76,8 +78,13 @@ Yang disetujui otomatis tercatat di riwayat kehadiran.
 **Alpa otomatis** — cron harian 17.00 WIB menandai peserta tanpa catatan sebagai
 alpa, melewati akhir pekan.
 
+**Periode magang** — tiap peserta punya tanggal mulai dan selesai. Kartunya
+berhenti berlaku di luar periode itu, alpa otomatis tidak menyentuhnya, dan
+akunnya dinonaktifkan sendiri saat periodenya habis.
+
 **Rekap & laporan** — halaman detail per peserta dengan rekap bulanan, ekspor
-`.xlsx`, dan laporan siap cetak berkop resmi.
+`.xlsx`, laporan siap cetak berkop resmi, dan **surat keterangan selesai magang**
+yang angka kehadirannya diambil langsung dari sistem.
 
 **Pengelolaan akun** — kredensial dikirim otomatis lewat email atau WhatsApp,
 plus pemeriksa kesehatan data.
@@ -201,6 +208,7 @@ tidak butuh jaringan maupun kredensial:
 | `tests/izin.test.ts` | pengajuan, tabrakan tanggal, persetujuan yang menulis absensi, pembatalan |
 | `tests/kartu.test.ts` | penerbitan kode, sebaran acak, pembacaan QR, penolakan QR asing |
 | `tests/kegiatan.test.ts` | batas menulis mundur, penguncian setelah diperiksa, pemisahan foto, batas ukuran |
+| `tests/periode.test.ts` | batas periode, penolakan di kios, antrean tertunda, alpa & penonaktifan otomatis |
 | `tests/jejak.test.ts` | jejak audit tertulis untuk tindakan yang berhasil, dan tidak untuk yang gagal |
 | `tests/waktu-rekap.test.ts` | zona waktu kantor, jarak geofencing, perhitungan rekap, batas bulan |
 
@@ -240,7 +248,7 @@ Firestore, dan mendaftar peserta yang belum punya kartu.
 
 | Koleksi | Dokumen | Isi |
 |---|---|---|
-| `users` | `{uid}` | name, email, role, nim, kampus, jurusan, telepon, status, kartuTerdaftar |
+| `users` | `{uid}` | name, email, role, nim, kampus, jurusan, telepon, status, kartuTerdaftar, mulaiPada, selesaiPada |
 | `kartu` | `{sidik-hash}` | userId, kode, label, dibuatPada — tertutup dari browser |
 | `jejak` | `{auto}` | aksi, pelaku, sasaran, rincian, padaMs — tertutup, dibaca lewat API |
 | `galat` | `{auto}` | pesan, tumpukan, halaman, perangkat, uid — tertutup, dibaca lewat API |
@@ -263,6 +271,24 @@ Cadangan sebaiknya disimpan di luar Firebase — cadangan yang berada di tempat
 yang sama dengan aslinya bukan cadangan. Kode kartu sengaja tidak disertakan:
 berkas cadangan biasanya berakhir di folder Unduhan atau chat, sedangkan kode
 kartu adalah satu-satunya hal yang membuat sebuah kartu sah.
+
+---
+
+## Antrean offline di Scan Card
+
+Kalau pengiriman gagal karena koneksi, pindaiannya disimpan di perangkat lalu
+dikirim ulang otomatis — tiap 20 detik dan saat jaringan kembali tersambung.
+Jumlah yang mengantre terlihat di kepala halaman Scan Card.
+
+Yang dikirim saat pengiriman ulang adalah **selisih waktunya**, bukan jam
+perangkat: "pindaian ini terjadi 12 menit yang lalu". Selisih dua pembacaan dari
+jam yang sama tetap benar meski jam itu disetel salah, jadi prinsip "waktu
+ditentukan server" tidak perlu dilanggar. Selisih dibatasi 30 menit, dan
+catatannya ditandai `tertunda` agar bisa dibedakan.
+
+Yang diantrekan hanya kegagalan koneksi. Kartu tidak sah, peserta nonaktif, atau
+di luar radius kantor tetap ditolak seketika — mengantrekannya cuma menunda
+pesan galat yang sama sambil membuat operator mengira sudah beres.
 
 ---
 

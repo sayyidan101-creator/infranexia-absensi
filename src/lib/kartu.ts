@@ -2,6 +2,8 @@ import { panggilApi } from "@/lib/api";
 
 export interface HasilAbsenKartu {
   mode: "masuk" | "pulang";
+  /** Benar bila catatan ini masuk lewat antrean offline, bukan seketika. */
+  tertunda?: boolean;
   status: string;
   jam: string;
   tanggal?: string;
@@ -40,14 +42,21 @@ export async function ambilKartuCetak(uids?: string[]): Promise<KartuCetak[]> {
   return r.kartu;
 }
 
-/** Catat absensi dari kartu yang dipindai di kios. */
+/**
+ * Catat absensi dari kartu yang dipindai di kios.
+ *
+ * `mundurDetik` dipakai antrean offline: berapa detik yang lalu pindaiannya
+ * benar-benar terjadi. Server memakai selisih itu untuk memundurkan jamnya,
+ * bukan mempercayai jam perangkat.
+ */
 export async function absenDenganKartu(
   kode: string,
   lat?: number | null,
-  lng?: number | null
+  lng?: number | null,
+  mundurDetik = 0
 ): Promise<HasilAbsenKartu> {
   return panggilApi<HasilAbsenKartu>("/api/kartu", {
-    aksi: "absen", kode, lat: lat ?? null, lng: lng ?? null,
+    aksi: "absen", kode, lat: lat ?? null, lng: lng ?? null, mundurDetik,
   });
 }
 

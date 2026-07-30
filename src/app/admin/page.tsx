@@ -14,6 +14,8 @@ import PanelSistem from "@/components/PanelSistem";
 import Sheet from "@/components/Sheet";
 import DaftarKartu from "@/components/DaftarKartu";
 import { CountUp, Skeleton, Kosong, Pesan } from "@/components/ui";
+import { labelPeriode, statusPeriode, GAYA_PERIODE, sisaHari } from "@/lib/periode";
+import { tanggalHariIni } from "@/lib/absensi";
 import { ambilKartuCetak } from "@/lib/kartu";
 import { lembarKartuHtml } from "@/lib/kartuCetak";
 import { cetakHtml } from "@/lib/ekspor";
@@ -22,6 +24,30 @@ interface U {
   id: string; name: string; email: string; role: string;
   nim?: string; kampus?: string; jurusan?: string; status?: string; createdAt?: any; foto?: string;
   telepon?: string; kartuTerdaftar?: boolean; kartuLabel?: string;
+  mulaiPada?: string; selesaiPada?: string;
+}
+
+/**
+ * Penanda periode magang. Yang paling berguna bukan tanggalnya, melainkan
+ * peringatan bahwa periodenya hampir habis — itu momen admin perlu menyiapkan
+ * surat keterangan dan menarik kartunya.
+ */
+function LencanaPeriode({ u, hariIni }: { u: U; hariIni: string }) {
+  const st = statusPeriode(u, hariIni);
+  if (st === "tanpa-periode") return null;
+
+  const sisa = sisaHari(u, hariIni);
+  const hampirHabis = st === "berjalan" && sisa !== null && sisa <= 7;
+  const g = GAYA_PERIODE[st];
+
+  return (
+    <span title={labelPeriode(u)}
+      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
+        hampirHabis ? "bg-amber-50 text-amber-700" : g.kelas
+      }`}>
+      {hampirHabis ? `${sisa} hari lagi` : g.teks}
+    </span>
+  );
 }
 
 /** Penanda apakah peserta sudah punya kartu absen. */
@@ -43,7 +69,7 @@ const BADGE = ["bg-blue-100 text-blue-700", "bg-emerald-100 text-emerald-700", "
 const badgeDivisi = (s: string) => BADGE[(s.charCodeAt(0) || 0) % BADGE.length];
 const tgl = (t?: any) => (t?.toDate ? t.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 
-const kosong: UserBaru = { name: "", email: "", password: "", role: "magang", nim: "", kampus: "", jurusan: "", telepon: "" };
+const kosong: UserBaru = { name: "", email: "", password: "", role: "magang", nim: "", kampus: "", jurusan: "", telepon: "", mulaiPada: "", selesaiPada: "" };
 
 function AdminInner() {
   const { profil } = useAuth();
@@ -79,6 +105,7 @@ function AdminInner() {
     return () => { document.body.style.overflow = ""; };
   }, [modal, konfirmHapus]);
 
+  const hariIni = tanggalHariIni();
   const magang = users.filter((u) => u.role === "magang");
   const aktif = magang.filter((u) => (u.status || "aktif") === "aktif").length;
   const nonaktif = magang.length - aktif;
@@ -111,6 +138,7 @@ function AdminInner() {
         const res = await buatUser({
           name: form.name, email: form.email, password: form.password, role: form.role,
           nim: form.nim, kampus: form.kampus, jurusan: form.jurusan, telepon: form.telepon,
+          mulaiPada: form.mulaiPada, selesaiPada: form.selesaiPada,
         });
         setHasilAkun({
           nama: form.name, email: form.email, password: form.password, peran: form.role,
@@ -125,6 +153,7 @@ function AdminInner() {
           uid: form.id, name: form.name, email: form.email, password: form.password || undefined,
           role: form.role, nim: form.nim, kampus: form.kampus, jurusan: form.jurusan,
           telepon: form.telepon, status: form.status,
+          mulaiPada: form.mulaiPada, selesaiPada: form.selesaiPada,
         });
         const catatan = [
           res.emailBerubah ? "email login diperbarui" : "",
@@ -257,6 +286,7 @@ function AdminInner() {
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="text-xs text-gray-400 truncate">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
                     {u.role === "magang" && <LencanaKartu ada={u.kartuTerdaftar} />}
+                    {u.role === "magang" && <LencanaPeriode u={u} hariIni={hariIni} />}
                   </div>
                 </div>
                 <span className="inline-flex items-center gap-1.5 text-xs shrink-0">
@@ -314,6 +344,7 @@ function AdminInner() {
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs text-gray-400">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
                             {u.role === "magang" && <LencanaKartu ada={u.kartuTerdaftar} />}
+                    {u.role === "magang" && <LencanaPeriode u={u} hariIni={hariIni} />}
                           </div>
                         </div>
                       </div>
@@ -410,6 +441,7 @@ function AdminInner() {
             <Info label="Kampus" val={form.kampus || "-"} />
             <Info label="Divisi / Jurusan" val={form.jurusan || "-"} />
             <Info label="WhatsApp" val={form.telepon || "-"} />
+            <Info label="Periode Magang" val={labelPeriode(form)} />
             <Info label="Status" val={form.status || "aktif"} />
             <Info label="Kartu Absen" val={form.kartuTerdaftar ? (form.kartuLabel || "terdaftar") : "belum terdaftar"} />
           </div>
@@ -468,6 +500,16 @@ function AdminInner() {
                   </FField>
                   <FField label="Divisi / Jurusan" penuh>
                     <input value={form.jurusan || ""} onChange={(e) => set("jurusan", e.target.value)} className={inp} />
+                  </FField>
+                  <FField label="Mulai Magang" bantuan="Boleh dikosongkan">
+                    <input type="date" value={form.mulaiPada || ""}
+                      max={form.selesaiPada || undefined}
+                      onChange={(e) => set("mulaiPada", e.target.value)} className={inp} />
+                  </FField>
+                  <FField label="Selesai Magang" bantuan="Setelah tanggal ini kartunya berhenti berlaku">
+                    <input type="date" value={form.selesaiPada || ""}
+                      min={form.mulaiPada || undefined}
+                      onChange={(e) => set("selesaiPada", e.target.value)} className={inp} />
                   </FField>
                 </div>
               </Bagian>

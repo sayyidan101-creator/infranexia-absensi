@@ -9,6 +9,9 @@ import { Pesan, Konfeti, Kosong } from "@/components/ui";
 import { pesanError } from "@/lib/users";
 import { kameraTersedia, mulaiPindaiQr, PemindaiQr } from "@/lib/pindaiQr";
 import { absenDenganKartu, absenManual, HasilAbsenKartu } from "@/lib/kartu";
+import {
+  ambilAntrean, antrekan, buang, tandaiGagal, kosongkan, mundurDetik, layakDiantre,
+} from "@/lib/antrean";
 import { ambilKonfigurasi, KONFIG_DEFAULT, Konfigurasi } from "@/lib/absensi";
 
 interface Catatan extends HasilAbsenKartu {
@@ -45,6 +48,8 @@ function ScanCardInner() {
   const [sibuk, setSibuk] = useState(false);
   const [banyakKamera, setBanyakKamera] = useState(false);
   const [layarPenuh, setLayarPenuh] = useState(false);
+  const [antre, setAntre] = useState(0);
+  const [mengirimAntre, setMengirimAntre] = useState(false);
 
   // Cadangan: ketik kode kartu, atau pilih nama peserta
   const [manualBuka, setManualBuka] = useState(false);
@@ -117,7 +122,14 @@ function ScanCardInner() {
       setRiwayat((lama) => [{ ...r, waktu: Date.now() }, ...lama].slice(0, 8));
       if (navigator.vibrate) navigator.vibrate(r.diulang ? 20 : [15, 45, 15]);
     } catch (e: any) {
-      setGagal(pesanError(e));
+      if (layakDiantre(e)) {
+        // Koneksi yang putus bukan alasan kehilangan absensi orang
+        antrekan(kode, posisi.current.lat, posisi.current.lng);
+        setAntre(ambilAntrean().length);
+        setGagal("Koneksi terputus. Pindaian disimpan dan akan dikirim otomatis saat jaringan pulih.");
+      } else {
+        setGagal(pesanError(e));
+      }
       setHasil(null);
       if (navigator.vibrate) navigator.vibrate([50, 60, 50]);
     } finally {
@@ -160,6 +172,41 @@ function ScanCardInner() {
   };
 
   useEffect(() => () => pemindai.current?.hentikan(), []);
+
+  /**
+   * Kirim ulang pindaian yang tertunda.
+   *
+   * Dijalankan berkala dan saat jaringan kembali tersambung. Yang dikirim
+   * adalah selisih waktunya, sehingga jamnya tetap sesuai saat pindaian
+   * sebenarnya terjadi — bukan saat pengirimannya berhasil.
+   */
+  const kirimAntrean = useCallback(async () => {
+    if (mengirimAntre) return;
+    const daftar = ambilAntrean();
+    setAntre(daftar.length);
+    if (daftar.length === 0) return;
+
+    setMengirimAntre(true);
+    for (const item of daftar) {
+      try {
+        await absenDenganKartu(item.kode, item.lat, item.lng, mundurDetik(item));
+        buang(item.id);
+      } catch (e: any) {
+        if (layakDiantre(e)) break;          // masih putus, coba lagi nanti
+        buang(item.id);                       // ditolak server, percuma diulang
+      }
+    }
+    setAntre(ambilAntrean().length);
+    setMengirimAntre(false);
+  }, [mengirimAntre]);
+
+  useEffect(() => {
+    setAntre(ambilAntrean().length);
+    const id = setInterval(kirimAntrean, 20_000);
+    const saatOnline = () => kirimAntrean();
+    window.addEventListener("online", saatOnline);
+    return () => { clearInterval(id); window.removeEventListener("online", saatOnline); };
+  }, [kirimAntrean]);
 
   const bukaManual = async () => {
     setManualBuka(true);
@@ -229,6 +276,16 @@ function ScanCardInner() {
               <span className={`w-1.5 h-1.5 rounded-full ${aktif ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
               {aktif ? "Kamera aktif" : "Kamera mati"}
             </span>
+            {antre > 0 && (
+              <button onClick={kirimAntrean} disabled={mengirimAntre}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 press disabled:opacity-60">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                  className={mengirimAntre ? "animate-spin" : ""}>
+                  <path d="M21 12a9 9 0 1 1-6.22-8.56" /><path d="M21 3v6h-6" />
+                </svg>
+                {mengirimAntre ? "Mengirim..." : `${antre} menunggu terkirim`}
+              </button>
+            )}
             {riwayat.length > 0 && (
               <span className="text-xs text-slate-400">{riwayat.length} pindaian sesi ini</span>
             )}
@@ -329,6 +386,9 @@ function ScanCardInner() {
                     )}
                     {hasil.diulang && (
                       <p className="text-sm text-gray-400 mt-3">Kartu dipindai ulang — tidak ada perubahan.</p>
+                    )}
+                    {hasil.tertunda && (
+                      <p className="text-sm text-gray-500 mt-3">Tersimpan dari antrean — jamnya sesuai saat kartu dipindai.</p>
                     )}
                   </>
                 ) : (

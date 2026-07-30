@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, adminAuth } from "@/server/firebaseAdmin";
 import { KesalahanAbsen, pastikanAdmin } from "@/server/absensi";
 import { catatJejak, namaUser } from "@/server/jejak";
+import { tanggalValid } from "@/lib/periode";
 import { emailAktif, kirimEmailAkun } from "@/server/email";
 
 export const runtime = "nodejs";
@@ -14,6 +15,23 @@ export const dynamic = "force-dynamic";
  *
  * body.aksi = "buat" | "hapus" | "sinkron"
  */
+/**
+ * Periksa dan rapikan periode magang.
+ * Keduanya boleh kosong — peserta lama belum punya, dan tidak boleh mendadak
+ * ditolak hanya karena kolom ini baru ditambahkan.
+ */
+function periodeAman(d: any): { mulaiPada: string; selesaiPada: string } {
+  const mulai = String(d?.mulaiPada || "").trim();
+  const selesai = String(d?.selesaiPada || "").trim();
+
+  if (mulai && !tanggalValid(mulai)) throw new KesalahanAbsen("Tanggal mulai tidak valid.");
+  if (selesai && !tanggalValid(selesai)) throw new KesalahanAbsen("Tanggal selesai tidak valid.");
+  if (mulai && selesai && selesai < mulai) {
+    throw new KesalahanAbsen("Tanggal selesai lebih awal daripada tanggal mulai.");
+  }
+  return { mulaiPada: mulai, selesaiPada: selesai };
+}
+
 /** Sebab teknis yang cukup untuk menelusuri, tanpa membocorkan isi kredensial. */
 function sebabRingkas(e: any): string {
   const kode = e?.code ? `${e.code}: ` : "";
@@ -80,6 +98,8 @@ async function buat(d: any, req: Request, pelaku: string) {
     throw new KesalahanAbsen(e?.message || "Gagal membuat akun.", 500);
   }
 
+  const periode = periodeAman(d);
+
   await adminDb().doc(`users/${uid}`).set({
     name: d.name.trim(),
     email: d.email.trim(),
@@ -88,6 +108,7 @@ async function buat(d: any, req: Request, pelaku: string) {
     kampus: d.kampus || "",
     jurusan: d.jurusan || "",
     telepon: rapikanTelepon(d.telepon),
+    ...periode,
     status: "aktif",
     kartuTerdaftar: false,
     createdAt: FieldValue.serverTimestamp(),
@@ -201,6 +222,7 @@ async function ubah(d: any, pelaku: string) {
       kampus: d.kampus || "",
       jurusan: d.jurusan || "",
       telepon: rapikanTelepon(d.telepon),
+      ...periodeAman(d),
       status: d.status || "aktif",
     },
     { merge: true }

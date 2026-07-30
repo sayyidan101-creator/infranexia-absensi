@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/server/firebaseAdmin";
 import {
   KesalahanAbsen, pastikanLogin, pastikanAdmin, ambilKonfigurasiServer,
@@ -7,12 +7,23 @@ import {
 } from "@/server/absensi";
 import { buatKode, hashKode, kodeValid, labelAman, normalkanKode } from "@/server/kartu";
 import { catatJejak, namaUser } from "@/server/jejak";
+import { dalamPeriode, labelPeriode } from "@/lib/periode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Pindaian berulang dalam jendela ini dianggap satu kali. */
 const DETIK_ANTI_GANDA = 20;
+
+/**
+ * Sejauh mana sebuah pindaian boleh dicatat mundur.
+ *
+ * Dipakai antrean offline di kios: kalau koneksi tersendat saat jam sibuk,
+ * pindaiannya disimpan di perangkat lalu dikirim ulang. Yang dikirim adalah
+ * **selisih waktu**, bukan jam perangkat — selisih dari satu jam yang sama
+ * tetap benar meski jam itu sendiri disetel salah.
+ */
+const MAKS_MUNDUR_DETIK = 30 * 60;
 
 /**
  * Kartu magang ber-QR.
@@ -233,7 +244,23 @@ async function catat(
   }
 
   const cfg = await ambilKonfigurasiServer();
-  const { tanggal, menit, jam } = waktuLokal(cfg.zonaWaktu);
+
+  const mundur = Math.min(
+    Math.max(0, Math.floor(Number(d?.mundurDetik) || 0)),
+    MAKS_MUNDUR_DETIK
+  );
+  const saat = mundur > 0 ? new Date(Date.now() - mundur * 1000) : new Date();
+  const { tanggal, menit, jam } = waktuLokal(cfg.zonaWaktu, saat);
+
+  // --- Periode magang ---
+  if (!dalamPeriode(user, tanggal)) {
+    throw new KesalahanAbsen(
+      user.selesaiPada && tanggal > user.selesaiPada
+        ? `Masa magang ${user.name || "peserta ini"} sudah berakhir (${labelPeriode(user)}).`
+        : `Masa magang ${user.name || "peserta ini"} belum dimulai (${labelPeriode(user)}).`,
+      403
+    );
+  }
 
   // --- Geofencing, bila diaktifkan ---
   const lat = typeof d?.lat === "number" ? d.lat : null;
@@ -260,7 +287,7 @@ async function catat(
   // --- Anti ketuk ganda ---
   const terakhir = ada?.jamPulang || ada?.jamMasuk;
   if (terakhir?.toDate) {
-    const selisih = (Date.now() - terakhir.toDate().getTime()) / 1000;
+    const selisih = (saat.getTime() - terakhir.toDate().getTime()) / 1000;
     if (selisih < DETIK_ANTI_GANDA) {
       return NextResponse.json({
         mode: ada.jamPulang ? "pulang" : "masuk",
@@ -278,6 +305,8 @@ async function catat(
     sumber,
     operator: pembina.uid,
     namaOperator: pembina.nama,
+    // Ditandai supaya terlihat mana yang masuk lewat antrean offline
+    tertunda: mundur > 0,
   };
 
   let mode: "masuk" | "pulang";
@@ -291,7 +320,7 @@ async function catat(
         ...dasar,
         userId: uid,
         tanggal,
-        jamMasuk: FieldValue.serverTimestamp(),
+        jamMasuk: mundur > 0 ? Timestamp.fromDate(saat) : FieldValue.serverTimestamp(),
         status,
         latitude: lat,
         longitude: lng,
@@ -314,7 +343,7 @@ async function catat(
     await ref.set(
       {
         ...dasar,
-        jamPulang: FieldValue.serverTimestamp(),
+        jamPulang: mundur > 0 ? Timestamp.fromDate(saat) : FieldValue.serverTimestamp(),
         latitudePulang: lat,
         longitudePulang: lng,
         jarakKantorPulang: jarakKantor == null ? null : Math.round(jarakKantor),
@@ -329,6 +358,7 @@ async function catat(
     mode,
     status,
     jam,
+    tertunda: mundur > 0,
     tanggal,
     nama: user.name || "Peserta",
     foto: user.foto || null,
