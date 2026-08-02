@@ -171,7 +171,7 @@ export default function DaftarKartu({
           </button>
         )}
 
-        <p className="text-[11px] text-gray-400 leading-relaxed">
+        <p className="text-[11px] text-gray-500 leading-relaxed">
           Kartunya dicetak seukuran KTP dan bisa dilaminasi. Yang tertanam di dalam QR
           hanya kodenya — nama dan identitas peserta tidak ikut di sana.
         </p>

@@ -16,7 +16,7 @@ export default function Home() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo.png" alt="InfraNexia" className="h-11 anim-float" />
       <div className="w-40 h-1.5 rounded-full skeleton" />
-      <p className="text-xs text-gray-400 tracking-widest uppercase anim-fade-in">Memuat</p>
+      <p className="text-xs text-gray-500 tracking-widest uppercase anim-fade-in">Memuat</p>
     </div>
   );
 }

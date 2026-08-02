@@ -97,7 +97,7 @@ export default function PengaturanAbsensi() {
           </p>
         </div>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          className={`text-gray-400 transition-transform duration-200 ${buka ? "rotate-180" : ""}`}>
+          className={`text-gray-500 transition-transform duration-200 ${buka ? "rotate-180" : ""}`}>
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
@@ -108,7 +108,7 @@ export default function PengaturanAbsensi() {
 
           {/* Jam kerja */}
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2.5">Jam Kerja</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2.5">Jam Kerja</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Field label="Jam Masuk">
                 <input type="time" value={cfg.jamMasuk} onChange={(e) => set("jamMasuk", e.target.value)} className={inp} />
@@ -125,7 +125,7 @@ export default function PengaturanAbsensi() {
                   onChange={(e) => set("minJedaMenit", e.target.value)} className={inp} />
               </Field>
             </div>
-            <p className="text-[11px] text-gray-400 mt-2">
+            <p className="text-[11px] text-gray-500 mt-2">
               Lewat toleransi otomatis berstatus <b>terlambat</b>. Jeda minimum mencegah absen pulang tepat setelah masuk.
             </p>
           </div>
@@ -133,7 +133,7 @@ export default function PengaturanAbsensi() {
           {/* Geofencing */}
           <div>
             <div className="flex items-center justify-between gap-3 mb-2.5">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Lokasi Kantor</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Lokasi Kantor</p>
               <button onClick={() => set("geofenceAktif", !cfg.geofenceAktif)}
                 role="switch" aria-checked={cfg.geofenceAktif}
                 className={`relative w-12 h-7 rounded-full transition-colors shrink-0 ${cfg.geofenceAktif ? "bg-emerald-500" : "bg-gray-300"}`}>
@@ -174,14 +174,14 @@ export default function PengaturanAbsensi() {
                 </a>
               )}
             </div>
-            <p className="text-[11px] text-gray-400 mt-2">
+            <p className="text-[11px] text-gray-500 mt-2">
               Saat aktif, absen di luar radius ditolak server. Buka halaman ini dari HP sambil berdiri di kantor untuk hasil paling akurat.
             </p>
           </div>
 
           {/* Pemeliharaan */}
           <div className="pt-1 border-t border-gray-100">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mt-4 mb-2">Pemeliharaan</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-4 mb-2">Pemeliharaan</p>
             <button
               onClick={async () => {
                 setSinkron(true); setPesan(null);
@@ -199,7 +199,7 @@ export default function PengaturanAbsensi() {
               </svg>
               {sinkron ? "Menyinkronkan..." : "Sinkronkan status kartu"}
             </button>
-            <p className="text-[11px] text-gray-400 mt-2">
+            <p className="text-[11px] text-gray-500 mt-2">
               Jalankan sekali setelah pembaruan sistem, agar penanda kepemilikan kartu selaras dengan data sebenarnya.
             </p>
           </div>

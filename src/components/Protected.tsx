@@ -11,7 +11,7 @@ function Splash() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo.png" alt="InfraNexia" className="h-11 anim-float" />
       <div className="w-40 h-1.5 rounded-full skeleton" />
-      <p className="text-xs text-gray-400 tracking-widest uppercase anim-fade-in">Menyiapkan aplikasi</p>
+      <p className="text-xs text-gray-500 tracking-widest uppercase anim-fade-in">Menyiapkan aplikasi</p>
     </div>
   );
 }
@@ -31,7 +31,7 @@ function Halangan({
       <p className="font-semibold text-navy-900 mt-2">{judul}</p>
       <p className="text-sm text-gray-500 max-w-sm">{pesan}</p>
       {detail && (
-        <p className="text-[11px] text-gray-400 font-mono mt-1 break-all max-w-sm">{detail}</p>
+        <p className="text-[11px] text-gray-500 font-mono mt-1 break-all max-w-sm">{detail}</p>
       )}
       <button onClick={keluar}
         className="mt-5 px-6 py-3 rounded-2xl bg-navy-900 text-white text-sm font-semibold press">

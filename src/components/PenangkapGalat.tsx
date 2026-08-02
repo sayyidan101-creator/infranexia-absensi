@@ -87,7 +87,7 @@ export default class PenangkapGalat extends React.Component<
             berulang, beri tahu admin apa yang kamu lakukan sebelum ini.
           </p>
 
-          <p className="mt-3 text-[11px] font-mono text-gray-400 break-words bg-gray-50 rounded-lg px-3 py-2">
+          <p className="mt-3 text-[11px] font-mono text-gray-500 break-words bg-gray-50 rounded-lg px-3 py-2">
             {this.state.galat.message || "Tanpa keterangan"}
           </p>
 

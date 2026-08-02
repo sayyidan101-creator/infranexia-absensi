@@ -114,7 +114,7 @@ export default function Login() {
 
           <label className="block text-xs font-medium text-gray-600 mb-1.5">Email</label>
           <div className="relative mb-4">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" />
               </svg>
@@ -136,7 +136,7 @@ export default function Login() {
             </button>
           </div>
           <div className="relative mb-6">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
@@ -148,7 +148,7 @@ export default function Login() {
               className="w-full border border-gray-200 rounded-xl pl-11 pr-12 py-3.5 text-sm outline-none focus:ring-2 focus:ring-navy-700 focus:border-transparent transition"
             />
             <button type="button" onClick={() => setLihat((v) => !v)} aria-label={lihat ? "Sembunyikan password" : "Tampilkan password"}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-navy-800 press">
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center justify-center text-gray-500 hover:text-navy-800 press">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
                 {!lihat && <line x1="3" y1="3" x2="21" y2="21" />}
@@ -184,7 +184,7 @@ export default function Login() {
             </button>
           )}
 
-          <p className="text-center text-xs text-gray-400 mt-5 leading-relaxed">
+          <p className="text-center text-xs text-gray-500 mt-5 leading-relaxed">
             Akun dibuat oleh admin. Hubungi admin/pembimbing jika kamu belum memiliki akun.
           </p>
         </div>

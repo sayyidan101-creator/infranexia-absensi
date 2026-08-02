@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import Avatar from "@/components/Avatar";
 import Kalender, { NavigasiBulan, BULAN, HariKalender } from "@/components/Kalender";
 import CincinProgres from "@/components/CincinProgres";
-import { CountUp, Skeleton, Kosong, Pesan, Segmen, KepalaHalaman } from "@/components/ui";
+import { CountUp, Skeleton, Kosong, Pesan, Segmen, KepalaHalaman, Halaman } from "@/components/ui";
 import { gaya, URUTAN } from "@/lib/status";
 import { unduhXlsx, cetakHtml } from "@/lib/ekspor";
 import { lolos } from "@/lib/aman";
@@ -205,7 +205,7 @@ function RiwayatInner() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <Halaman lebar="penuh">
       <KepalaHalaman
         atas="Kehadiran"
         judul="Riwayat Kehadiran"
@@ -242,17 +242,17 @@ function RiwayatInner() {
               anak={
                 <>
                   <span className="text-2xl font-bold text-navy-900 tabular-nums">{rekap.persenKehadiran}%</span>
-                  <span className="text-[10px] uppercase tracking-wide text-gray-400 mt-1">hadir</span>
+                  <span className="text-[10px] uppercase tracking-wide text-gray-500 mt-1">hadir</span>
                 </>
               }
             />
             <div className="min-w-0 flex-1">
-              <p className="text-xs uppercase tracking-widest text-gray-400">
+              <p className="text-xs uppercase tracking-widest text-gray-500">
                 {mode === "kalender" ? `${BULAN[bulan - 1]} ${tahun}` : "Periode terpilih"}
               </p>
               <p className="text-2xl font-bold text-navy-900 mt-1 tabular-nums leading-none">
                 {rekap.hadir + rekap.terlambat}
-                <span className="text-base font-medium text-gray-400"> dari {rekap.hariKerja} hari</span>
+                <span className="text-base font-medium text-gray-500"> dari {rekap.hariKerja} hari</span>
               </p>
               {/* Dibiarkan mengalir, bukan dua kolom: label seperti "Hadir tapi
                   terlambat" terpotong kalau dipaksa masuk setengah lebar layar. */}
@@ -301,7 +301,7 @@ function RiwayatInner() {
 
           {pilihTanggal && (
             <div className="mt-5 pt-5 border-t border-gray-100 anim-fade-up">
-              <p className="text-xs uppercase tracking-widest text-gray-400">{tglPanjang(pilihTanggal)}</p>
+              <p className="text-xs uppercase tracking-widest text-gray-500">{tglPanjang(pilihTanggal)}</p>
               {detailHari ? (
                 <div className="flex items-center gap-4 mt-2.5 flex-wrap">
                   <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${gaya(detailHari.status).lencana}`}>
@@ -329,7 +329,7 @@ function RiwayatInner() {
         <div className="card p-3 sm:p-4 anim-fade-up d-1">
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
               </span>
               <input value={cari} onChange={(e) => { setCari(e.target.value); setPage(1); }}
@@ -398,7 +398,7 @@ function RiwayatInner() {
                     <p className="font-semibold text-sm text-navy-900 truncate">
                       {isPembina ? r.nama : tglPanjang(r.tanggal).split(",")[0]}
                     </p>
-                    {isPembina && <span className="text-[10px] text-gray-400 shrink-0">{tglPendek(r.tanggal)}</span>}
+                    {isPembina && <span className="text-[10px] text-gray-500 shrink-0">{tglPendek(r.tanggal)}</span>}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1">
@@ -427,7 +427,7 @@ function RiwayatInner() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
+                <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500 border-b border-gray-100">
                   {isPembina && <th className="px-5 py-3 font-medium">Nama Magang</th>}
                   {isPembina && <th className="px-5 py-3 font-medium">Divisi</th>}
                   <th className="px-5 py-3 font-medium">Tanggal</th>
@@ -451,7 +451,7 @@ function RiwayatInner() {
                             <Avatar name={r.nama} foto={r.foto} size={36} />
                             <div>
                               <Link href={`/peserta/${r.userId}`} className="font-medium text-navy-900 hover:underline">{r.nama}</Link>
-                              <p className="text-xs text-gray-400">ID: {r.kode}</p>
+                              <p className="text-xs text-gray-500">ID: {r.kode}</p>
                             </div>
                           </div>
                         </td>
@@ -487,7 +487,7 @@ function RiwayatInner() {
                     className={`w-9 h-9 rounded-xl text-sm press transition ${n === hal ? "bg-navy-900 text-white" : "border border-gray-200 hover:bg-gray-50"}`}>{n}</button>
                 );
               })}
-              {totalHal > 5 && <span className="px-1 text-gray-400">… {totalHal}</span>}
+              {totalHal > 5 && <span className="px-1 text-gray-500">… {totalHal}</span>}
               <button onClick={() => setPage((p) => Math.min(totalHal, p + 1))} disabled={hal === totalHal}
                 className="w-9 h-9 rounded-xl border border-gray-200 flex items-center justify-center disabled:opacity-40 press hover:bg-gray-50">›</button>
             </div>
@@ -516,7 +516,7 @@ function RiwayatInner() {
             icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6M9 9l6 6" /></svg>} />
         </div>
       )}
-    </div>
+    </Halaman>
   );
 }
 

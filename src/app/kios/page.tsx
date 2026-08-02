@@ -485,7 +485,7 @@ function ScanCardInner() {
                       <p className="text-sm text-amber-700 mt-3 font-semibold">Tercatat terlambat</p>
                     )}
                     {hasil.diulang && (
-                      <p className="text-sm text-gray-400 mt-3">Kartu dipindai ulang — tidak ada perubahan.</p>
+                      <p className="text-sm text-gray-500 mt-3">Kartu dipindai ulang — tidak ada perubahan.</p>
                     )}
                     {hasil.tertunda && (
                       <p className="text-sm text-gray-500 mt-3">Tersimpan dari antrean — jamnya sesuai saat kartu dipindai.</p>
@@ -550,7 +550,7 @@ function ScanCardInner() {
                   <Avatar name={r.nama} foto={r.foto || undefined} size={36} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-navy-900 truncate">{r.nama}</p>
-                    <p className="text-[11px] text-gray-400">
+                    <p className="text-[11px] text-gray-500">
                       {r.mode === "masuk" ? "Masuk" : "Pulang"}
                       {r.mode === "masuk" && r.status === "terlambat" && " · terlambat"}
                     </p>
@@ -566,7 +566,7 @@ function ScanCardInner() {
           )}
         </div>
 
-        <p className="text-center text-[11px] text-gray-400 anim-fade-up d-3">
+        <p className="text-center text-[11px] text-gray-500 anim-fade-up d-3">
           Jam dicatat dari waktu server. Biarkan halaman ini terbuka selama jam kerja.
         </p>
       </div>
@@ -611,14 +611,14 @@ function ScanCardInner() {
                     <Avatar name={p.name} foto={p.foto} size={36} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-navy-900 truncate">{p.name}</p>
-                      <p className="text-[11px] text-gray-400 truncate">{p.jurusan || p.nim || "—"}</p>
+                      <p className="text-[11px] text-gray-500 truncate">{p.jurusan || p.nim || "—"}</p>
                     </div>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-300 shrink-0"><path d="m9 18 6-6-6-6" /></svg>
                   </button>
                 </li>
               ))}
               {pesertaTersaring.length === 0 && (
-                <li className="py-8 text-center text-sm text-gray-400">Tidak ada peserta cocok.</li>
+                <li className="py-8 text-center text-sm text-gray-500">Tidak ada peserta cocok.</li>
               )}
             </ul>
           </div>

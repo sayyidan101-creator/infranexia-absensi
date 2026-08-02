@@ -98,7 +98,7 @@ export default function KodeLayar({ jamKerja }: { jamKerja?: string }) {
             />
           ) : (
             <div className="w-[min(70vw,22rem)] h-[min(70vw,22rem)] flex items-center justify-center">
-              <span className="text-sm text-gray-400">
+              <span className="text-sm text-gray-500">
                 {memuat ? "Menyiapkan kode..." : "Kode tidak tersedia"}
               </span>
             </div>

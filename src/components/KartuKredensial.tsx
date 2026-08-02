@@ -78,7 +78,7 @@ export default function KartuKredensial({ hasil, onTutup }: { hasil: HasilAkun; 
           <span className="text-xs text-gray-500 w-20 shrink-0">Password</span>
           <span className="flex-1 text-sm font-semibold font-mono text-navy-900 break-all">{hasil.password}</span>
           <button onClick={() => salin(hasil.password, "password")}
-            className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-navy-900 hover:bg-white press"
+            className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-navy-900 hover:bg-white press"
             aria-label="Salin password">
             {tersalin === "password"
               ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3"><path d="m5 13 4 4L19 7" /></svg>
@@ -87,7 +87,7 @@ export default function KartuKredensial({ hasil, onTutup }: { hasil: HasilAkun; 
         </div>
       </div>
 
-      <p className="text-[11px] text-gray-400 leading-relaxed">
+      <p className="text-[11px] text-gray-500 leading-relaxed">
         Password ini hanya ditampilkan sekali. Setelah jendela ini ditutup, password
         tidak bisa dilihat lagi — hanya bisa diganti lewat Firebase Console.
       </p>
@@ -114,7 +114,7 @@ export default function KartuKredensial({ hasil, onTutup }: { hasil: HasilAkun; 
       </div>
 
       {!nomorWa && (
-        <p className="text-[11px] text-gray-400 text-center">
+        <p className="text-[11px] text-gray-500 text-center">
           Nomor HP tidak diisi, jadi WhatsApp akan meminta kamu memilih kontak tujuan.
         </p>
       )}

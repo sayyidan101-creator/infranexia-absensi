@@ -13,7 +13,7 @@ import KesehatanData from "@/components/KesehatanData";
 import PanelSistem from "@/components/PanelSistem";
 import Sheet from "@/components/Sheet";
 import DaftarKartu from "@/components/DaftarKartu";
-import { CountUp, Skeleton, Kosong, Pesan } from "@/components/ui";
+import { CountUp, Skeleton, Kosong, Pesan, Halaman } from "@/components/ui";
 import { labelPeriode, statusPeriode, GAYA_PERIODE, sisaHari } from "@/lib/periode";
 import { tanggalHariIni } from "@/lib/absensi";
 import { ambilKartuCetak } from "@/lib/kartu";
@@ -222,11 +222,11 @@ function AdminInner() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <Halaman lebar="penuh">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 anim-fade-up">
         <div>
-          <p className="text-[11px] font-semibold text-gray-400 tracking-widest uppercase">Administrasi SDM</p>
+          <p className="text-[11px] font-semibold text-gray-500 tracking-widest uppercase">Administrasi SDM</p>
           <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">Kelola Data Magang</h1>
           <p className="text-sm text-gray-500 mt-1 max-w-xl">Manajemen terpusat peserta magang, dari onboarding hingga evaluasi akhir.</p>
         </div>
@@ -272,7 +272,7 @@ function AdminInner() {
       {/* Filter */}
       <div className="card p-3 sm:p-4 flex flex-col sm:flex-row gap-2.5 anim-fade-up d-2">
         <div className="relative flex-1">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
           </span>
           <input value={cari} onChange={(e) => { setCari(e.target.value); setPage(1); }} placeholder="Cari nama atau ID magang..."
@@ -298,20 +298,20 @@ function AdminInner() {
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-navy-900 truncate">{u.name}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-xs text-gray-400 truncate">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
+                    <span className="text-xs text-gray-500 truncate">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
                     {u.role === "magang" && <LencanaKartu ada={u.kartuTerdaftar} />}
                     {u.role === "magang" && <LencanaPeriode u={u} hariIni={hariIni} />}
                   </div>
                 </div>
                 <span className="inline-flex items-center gap-1.5 text-xs shrink-0">
                   <i className={`w-2 h-2 rounded-full ${st === "aktif" ? "bg-emerald-500" : "bg-gray-300"}`} />
-                  <span className={st === "aktif" ? "text-navy-900" : "text-gray-400 capitalize"}>{st === "aktif" ? "Aktif" : st}</span>
+                  <span className={st === "aktif" ? "text-navy-900" : "text-gray-500 capitalize"}>{st === "aktif" ? "Aktif" : st}</span>
                 </span>
               </div>
               <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-50">
                 {u.jurusan
                   ? <span className={`text-[10px] font-semibold px-2 py-1 rounded-md ${badgeDivisi(u.jurusan)}`}>{u.jurusan.toUpperCase()}</span>
-                  : <span className="text-[11px] text-gray-400 capitalize">{u.role}</span>}
+                  : <span className="text-[11px] text-gray-500 capitalize">{u.role}</span>}
                 <div className="flex items-center gap-1.5">
                   {bisaKelola && u.role === "magang" && (
                     <TombolKecil label="Kartu" onClick={() => setKartuUntuk(u)}>
@@ -333,7 +333,7 @@ function AdminInner() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
+              <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500 border-b border-gray-100">
                 <th className="px-5 py-3 font-medium">Profil & ID</th>
                 <th className="px-5 py-3 font-medium">Divisi</th>
                 <th className="px-5 py-3 font-medium">Tanggal Bergabung</th>
@@ -356,7 +356,7 @@ function AdminInner() {
                         <div>
                           <Link href={`/peserta/${u.id}`} className="font-medium text-navy-900 hover:underline">{u.name}</Link>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-gray-400">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
+                            <span className="text-xs text-gray-500">{u.role === "magang" ? `ID: ${u.nim || u.id.slice(0, 8)}` : u.role}</span>
                             {u.role === "magang" && <LencanaKartu ada={u.kartuTerdaftar} />}
                     {u.role === "magang" && <LencanaPeriode u={u} hariIni={hariIni} />}
                           </div>
@@ -366,17 +366,17 @@ function AdminInner() {
                     <td className="px-5 py-3">
                       {u.jurusan
                         ? <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-md ${badgeDivisi(u.jurusan)}`}>{u.jurusan.toUpperCase()}</span>
-                        : <span className="text-xs text-gray-400 capitalize">{u.role}</span>}
+                        : <span className="text-xs text-gray-500 capitalize">{u.role}</span>}
                     </td>
                     <td className="px-5 py-3 text-gray-600">{tgl(u.createdAt)}</td>
                     <td className="px-5 py-3">
                       <span className="inline-flex items-center gap-1.5 text-sm">
                         <i className={`w-2 h-2 rounded-full ${st === "aktif" ? "bg-emerald-500" : "bg-gray-300"}`} />
-                        <span className={st === "aktif" ? "text-navy-900" : "text-gray-400 capitalize"}>{st === "aktif" ? "Aktif" : st}</span>
+                        <span className={st === "aktif" ? "text-navy-900" : "text-gray-500 capitalize"}>{st === "aktif" ? "Aktif" : st}</span>
                       </span>
                     </td>
                     <td className="px-5 py-3">
-                      <div className="flex items-center justify-end gap-1 text-gray-400">
+                      <div className="flex items-center justify-end gap-1 text-gray-500">
                         {bisaKelola && <IconBtn title="Edit" onClick={() => bukaEdit(u)}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></IconBtn>}
                         {bisaKelola && <IconBtn title="Hapus" onClick={() => mintaHapus(u)} danger><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /></IconBtn>}
                         {bisaKelola && u.role === "magang" && (
@@ -410,7 +410,7 @@ function AdminInner() {
           {Array.from({ length: totalHal }).slice(0, 4).map((_, i) => (
             <button key={i} onClick={() => setPage(i + 1)} className={`w-9 h-9 rounded-xl text-sm press transition ${hal === i + 1 ? "bg-navy-900 text-white" : "border border-gray-200 hover:bg-gray-50"}`}>{i + 1}</button>
           ))}
-          {totalHal > 4 && <span className="px-1 text-gray-400">… {totalHal}</span>}
+          {totalHal > 4 && <span className="px-1 text-gray-500">… {totalHal}</span>}
           <button onClick={() => setPage((p) => Math.min(totalHal, p + 1))} disabled={hal === totalHal} className="w-9 h-9 rounded-xl border border-gray-200 disabled:opacity-40 press hover:bg-gray-50">›</button>
         </div>
       </div>
@@ -595,7 +595,7 @@ function AdminInner() {
           </p>
         </div>
       </Sheet>
-    </div>
+    </Halaman>
   );
 }
 
@@ -606,7 +606,7 @@ function StatCard({ label, angka, icon, iconBg, delay = "" }: any) {
     <div className={`card p-3.5 sm:p-5 flex sm:items-center sm:justify-between flex-col sm:flex-row gap-2 anim-fade-up ${delay} transition-transform md:hover:-translate-y-0.5`}>
       <div className={`w-9 h-9 sm:hidden rounded-xl flex items-center justify-center ${iconBg}`}>{icon}</div>
       <div>
-        <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide">{label}</p>
+        <p className="text-[10px] sm:text-xs text-gray-500 uppercase tracking-wide">{label}</p>
         <p className="text-2xl sm:text-3xl font-bold text-navy-900 mt-0.5 sm:mt-1.5 tabular-nums"><CountUp value={angka} /></p>
       </div>
       <div className={`hidden sm:flex w-12 h-12 rounded-full items-center justify-center ${iconBg}`}>{icon}</div>
@@ -633,7 +633,7 @@ function FField({ label, children, bantuan, penuh }: any) {
     <div className={penuh ? "sm:col-span-2" : ""}>
       <label className="block text-xs font-medium text-gray-600 mb-1.5">{label}</label>
       {children}
-      {bantuan && <p className="text-[11px] text-gray-400 mt-1">{bantuan}</p>}
+      {bantuan && <p className="text-[11px] text-gray-500 mt-1">{bantuan}</p>}
     </div>
   );
 }
@@ -641,9 +641,9 @@ function FField({ label, children, bantuan, penuh }: any) {
 function Bagian({ judul, bantuan, children }: any) {
   return (
     <section>
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">{judul}</p>
+      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2.5">{judul}</p>
       {children}
-      {bantuan && <p className="text-[11px] text-gray-400 mt-1.5">{bantuan}</p>}
+      {bantuan && <p className="text-[11px] text-gray-500 mt-1.5">{bantuan}</p>}
     </section>
   );
 }

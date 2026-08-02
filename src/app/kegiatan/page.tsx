@@ -4,7 +4,7 @@ import Protected from "@/components/Protected";
 import Avatar from "@/components/Avatar";
 import Sheet from "@/components/Sheet";
 import { useAuth } from "@/context/AuthContext";
-import { Pesan, Kosong, Skeleton, Segmen, KepalaHalaman } from "@/components/ui";
+import { Pesan, Kosong, Skeleton, Segmen, KepalaHalaman, Halaman } from "@/components/ui";
 import { pesanError } from "@/lib/users";
 import { kecilkanGambar, ukuranKb } from "@/lib/gambar";
 import { cetakHtml } from "@/lib/ekspor";
@@ -211,7 +211,7 @@ function KegiatanInner() {
   const sudahDiperiksa = dibuka?.status === "diperiksa";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <Halaman lebar="sedang">
       <KepalaHalaman
         atas="Logbook"
         judul={isPembina ? "Catatan Kegiatan" : "Kegiatan Harian"}
@@ -250,14 +250,14 @@ function KegiatanInner() {
                         : "border-navy-900/15 bg-navy-900/[0.04]"
                       : "border-dashed border-gray-200 bg-white"
                   }`}>
-                  <p className="text-[10px] uppercase tracking-wide text-gray-400">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500">
                     {i === 0 ? "Hari ini" : i === 1 ? "Kemarin" : tglPendek(t)}
                   </p>
-                  <p className={`text-xs font-semibold mt-1 ${ada ? "text-navy-900" : "text-gray-400"}`}>
+                  <p className={`text-xs font-semibold mt-1 ${ada ? "text-navy-900" : "text-gray-500"}`}>
                     {ada ? (terkunci ? "Diperiksa" : "Terisi") : "Belum diisi"}
                   </p>
                   {ada?.adaFoto && (
-                    <span className="absolute top-2 right-2 text-gray-400" title="Ada bukti foto">
+                    <span className="absolute top-2 right-2 text-gray-500" title="Ada bukti foto">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <rect x="3" y="5" width="18" height="15" rx="2" /><circle cx="12" cy="12" r="3" />
                       </svg>
@@ -363,12 +363,12 @@ function KegiatanInner() {
               onChange={(e) => setForm({ ...form, kegiatan: e.target.value })}
               placeholder="Contoh: Membantu konfigurasi perangkat jaringan di ruang server, lalu mendokumentasikan hasilnya ke lembar inventaris."
               className="w-full border border-gray-200 rounded-xl px-3.5 py-3 text-sm outline-none focus:ring-2 focus:ring-navy-700 resize-none" />
-            <p className="text-[11px] text-gray-400 mt-1 text-right">{form.kegiatan.length}/1500</p>
+            <p className="text-[11px] text-gray-500 mt-1 text-right">{form.kegiatan.length}/1500</p>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              Kendala <span className="text-gray-400">— boleh dikosongkan</span>
+              Kendala <span className="text-gray-500">— boleh dikosongkan</span>
             </label>
             <textarea rows={2} value={form.kendala} maxLength={500}
               onChange={(e) => setForm({ ...form, kendala: e.target.value })}
@@ -378,7 +378,7 @@ function KegiatanInner() {
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">
-              Bukti foto <span className="text-gray-400">— opsional</span>
+              Bukti foto <span className="text-gray-500">— opsional</span>
             </label>
 
             {foto ? (
@@ -416,7 +416,7 @@ function KegiatanInner() {
 
             <input ref={berkasRef} type="file" accept="image/*" capture="environment"
               className="hidden" onChange={pilihFoto} />
-            <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+            <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
               Fotonya dikecilkan otomatis di perangkatmu sebelum dikirim, jadi hemat kuota.
             </p>
           </div>
@@ -492,7 +492,7 @@ function KegiatanInner() {
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Catatan untuk peserta <span className="text-gray-400">— opsional</span>
+                Catatan untuk peserta <span className="text-gray-500">— opsional</span>
               </label>
               <textarea rows={3} value={catatan} maxLength={500}
                 onChange={(e) => setCatatan(e.target.value)}
@@ -509,7 +509,7 @@ function KegiatanInner() {
           </div>
         )}
       </Sheet>
-    </div>
+    </Halaman>
   );
 }
 

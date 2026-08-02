@@ -5,7 +5,7 @@ import { doc, getDoc } from "firebase/firestore";
 import Protected from "@/components/Protected";
 import Avatar from "@/components/Avatar";
 import { db } from "@/lib/firebase";
-import { CountUp, Skeleton, Kosong, Pesan } from "@/components/ui";
+import { CountUp, Skeleton, Kosong, Pesan, Halaman } from "@/components/ui";
 import { unduhXlsx, cetakHtml } from "@/lib/ekspor";
 import { laporanHtml } from "@/lib/laporan";
 import { sertifikatHtml } from "@/lib/sertifikat";
@@ -150,7 +150,7 @@ function PesertaInner() {
   if (galat) return <Pesan tipe="err">{galat}</Pesan>;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <Halaman lebar="sedang">
       {/* Kembali */}
       <button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-sm text-gray-500 press anim-fade-up">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
@@ -192,7 +192,7 @@ function PesertaInner() {
               </p>
             )}
             {(orang?.nim || orang?.kampus) && (
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-gray-500 mt-2">
                 {orang?.nim && `NIM ${orang.nim}`}{orang?.nim && orang?.kampus && " · "}{orang?.kampus}
               </p>
             )}
@@ -277,7 +277,7 @@ function PesertaInner() {
                 <li key={a.id} className="flex items-center gap-3 px-5 py-3 anim-fade-up" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
                   <div className="w-11 shrink-0 text-center">
                     <p className="text-base font-bold text-navy-900 leading-none">{a.tanggal.slice(8)}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">
+                    <p className="text-[10px] text-gray-500 mt-0.5">
                       {new Date(a.tanggal + "T00:00:00").toLocaleDateString("id-ID", { weekday: "short" })}
                     </p>
                   </div>
@@ -293,7 +293,7 @@ function PesertaInner() {
           </ul>
         )}
       </div>
-    </div>
+    </Halaman>
   );
 }
 

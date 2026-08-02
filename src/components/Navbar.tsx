@@ -205,11 +205,11 @@ export default function Navbar() {
                 className="relative flex-1 min-w-0 flex flex-col items-center justify-center gap-1 py-2.5 press">
                 <span className={`absolute top-0 h-0.5 rounded-full bg-telkomRed transition-all duration-300 ${aktif ? "w-8 opacity-100" : "w-0 opacity-0"}`} />
                 <span className={`relative flex items-center justify-center w-9 h-7 rounded-xl transition-all duration-300 ${
-                  aktif ? "bg-navy-900/10 text-navy-900 -translate-y-0.5" : "text-gray-400"
+                  aktif ? "bg-navy-900/10 text-navy-900 -translate-y-0.5" : "text-gray-500"
                 }`}>
                   <Ikon className="w-[21px] h-[21px]" />
                 </span>
-                <span className={`text-[10px] leading-none transition-colors ${aktif ? "text-navy-900 font-semibold" : "text-gray-400 font-medium"}`}>
+                <span className={`text-[10px] leading-none transition-colors ${aktif ? "text-navy-900 font-semibold" : "text-gray-500 font-medium"}`}>
                   {m.pendek}
                 </span>
               </Link>

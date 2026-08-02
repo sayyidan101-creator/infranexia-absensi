@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Protected from "@/components/Protected";
 import { useAuth } from "@/context/AuthContext";
-import { Pesan, Konfeti, KepalaHalaman } from "@/components/ui";
+import { Pesan, Konfeti, KepalaHalaman, Halaman } from "@/components/ui";
 import { pesanError } from "@/lib/users";
 import { kameraTersedia, mulaiPindaiQr, PemindaiQr } from "@/lib/pindaiQr";
 import { absenDenganLayar, HasilAbsenKartu } from "@/lib/kartu";
@@ -117,7 +117,7 @@ function AbsenInner() {
   const didukung = kameraTersedia();
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
+    <Halaman lebar="sempit">
       <KepalaHalaman
         atas="Kehadiran"
         judul="Absen"
@@ -229,11 +229,11 @@ function AbsenInner() {
         {aktif ? "Matikan Kamera" : "Nyalakan Kamera"}
       </button>
 
-      <p className="text-center text-[11px] text-gray-400 leading-relaxed">
+      <p className="text-center text-[11px] text-gray-500 leading-relaxed">
         Kode di layar berganti tiap 20 detik dan tidak bisa dipakai dari tempat lain.
         Kalau kameramu bermasalah, minta pembimbing mencatatkan lewat menu Scan Card.
       </p>
-    </div>
+    </Halaman>
   );
 }
 

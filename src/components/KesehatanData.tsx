@@ -66,7 +66,7 @@ export default function KesehatanData() {
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 shrink-0">{masalah}</span>
         )}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          className={`text-gray-400 transition-transform duration-200 ${buka ? "rotate-180" : ""}`}>
+          className={`text-gray-500 transition-transform duration-200 ${buka ? "rotate-180" : ""}`}>
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
@@ -145,7 +145,7 @@ function Bagian({
           {daftar.slice(0, 6).map((t, i) => (
             <li key={i} className="text-xs text-navy-900 font-mono break-all">· {t}</li>
           ))}
-          {daftar.length > 6 && <li className="text-xs text-gray-400">+{daftar.length - 6} lainnya</li>}
+          {daftar.length > 6 && <li className="text-xs text-gray-500">+{daftar.length - 6} lainnya</li>}
         </ul>
       )}
 

@@ -83,7 +83,7 @@ export default function Kalender({
         {HARI.map((h, i) => (
           <div key={i} title={HARI_PANJANG[i]}
             className={`text-center text-[10px] font-semibold uppercase tracking-wide ${
-              i >= 5 ? "text-gray-300" : "text-gray-400"
+              i >= 5 ? "text-gray-300" : "text-gray-500"
             }`}>
             {h}
           </div>
@@ -114,7 +114,7 @@ export default function Kalender({
               ? `${g.padat} font-semibold`
               : s.akhirPekan
               ? "bg-gray-50/70 text-gray-300"
-              : "bg-gray-50 text-gray-400",
+              : "bg-gray-50 text-gray-500",
             ini ? "ring-2 ring-navy-900 ring-offset-1" : "",
             aktif ? "scale-[1.08] shadow-lift z-10" : "",
             bisaDiklik ? "press cursor-pointer" : "",
@@ -152,7 +152,7 @@ export default function Kalender({
       )}
 
       {legenda && dipakai.length === 0 && (
-        <p className="text-[11px] text-gray-400 mt-4 pt-3.5 border-t border-gray-100 text-center">
+        <p className="text-[11px] text-gray-500 mt-4 pt-3.5 border-t border-gray-100 text-center">
           Belum ada catatan kehadiran pada bulan ini.
         </p>
       )}

@@ -4,7 +4,7 @@ import Protected from "@/components/Protected";
 import Avatar from "@/components/Avatar";
 import CincinProgres from "@/components/CincinProgres";
 import { useAuth } from "@/context/AuthContext";
-import { Pesan, Skeleton, KepalaHalaman } from "@/components/ui";
+import { Pesan, Skeleton, KepalaHalaman, Halaman } from "@/components/ui";
 import { gaya, URUTAN } from "@/lib/status";
 import { batasBulan, riwayatRentang, hitungRekap, Rekap } from "@/lib/absensi";
 import { doc, updateDoc } from "firebase/firestore";
@@ -115,7 +115,7 @@ function ProfilInner() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 sm:space-y-5">
+    <Halaman lebar="sempit">
       <KepalaHalaman
         atas="Akun"
         judul="Profil Saya"
@@ -142,7 +142,7 @@ function ProfilInner() {
             </div>
             {foto && (
               <button onClick={() => setFoto(undefined)}
-                className="text-xs text-gray-400 hover:text-telkomRed press pb-1">Hapus foto</button>
+                className="text-xs text-gray-500 hover:text-telkomRed press pb-1">Hapus foto</button>
             )}
           </div>
 
@@ -168,7 +168,7 @@ function ProfilInner() {
       {/* ---------- RINGKASAN KEHADIRAN ---------- */}
       {magang && (
         <div className="card p-5 anim-fade-up d-2">
-          <p className="text-xs uppercase tracking-widest text-gray-400 mb-4">Kehadiran bulan ini</p>
+          <p className="text-xs uppercase tracking-widest text-gray-500 mb-4">Kehadiran bulan ini</p>
           {!rekap ? (
             <Skeleton className="h-24 w-full rounded-xl" />
           ) : (
@@ -181,7 +181,7 @@ function ProfilInner() {
                 anak={
                   <>
                     <span className="text-xl font-bold text-navy-900 tabular-nums">{rekap.persenKehadiran}%</span>
-                    <span className="text-[9px] uppercase tracking-wide text-gray-400 mt-0.5">hadir</span>
+                    <span className="text-[9px] uppercase tracking-wide text-gray-500 mt-0.5">hadir</span>
                   </>
                 }
               />
@@ -210,7 +210,7 @@ function ProfilInner() {
 
       {/* ---------- DATA DIRI ---------- */}
       <div className="card p-5 anim-fade-up d-3">
-        <p className="text-xs uppercase tracking-widest text-gray-400 mb-4">Data diri</p>
+        <p className="text-xs uppercase tracking-widest text-gray-500 mb-4">Data diri</p>
         <Field label="Nama Lengkap" value={form.name} onChange={(v: string) => set("name", v)} />
         {magang && (
           <div className="grid sm:grid-cols-2 gap-x-3">
@@ -219,7 +219,7 @@ function ProfilInner() {
             <Field label="Jurusan / Divisi" value={form.jurusan} onChange={(v: string) => set("jurusan", v)} />
           </div>
         )}
-        <p className="text-[11px] text-gray-400 mt-1">
+        <p className="text-[11px] text-gray-500 mt-1">
           Email login hanya bisa diubah admin lewat menu Kelola.
         </p>
       </div>
@@ -227,7 +227,7 @@ function ProfilInner() {
       {/* ---------- KEAMANAN ---------- */}
       <div className="card p-5 anim-fade-up d-4">
         <div className="flex items-center justify-between gap-3 mb-1">
-          <p className="text-xs uppercase tracking-widest text-gray-400">Ganti password</p>
+          <p className="text-xs uppercase tracking-widest text-gray-500">Ganti password</p>
           <button onClick={() => setLihatPass((v) => !v)}
             className="text-[11px] font-medium text-gray-500 press">
             {lihatPass ? "Sembunyikan" : "Tampilkan"}
@@ -261,7 +261,7 @@ function ProfilInner() {
           ? (<><span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Menyimpan...</>)
           : "Simpan Perubahan"}
       </button>
-    </div>
+    </Halaman>
   );
 }
 

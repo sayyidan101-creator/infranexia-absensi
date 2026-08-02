@@ -23,7 +23,7 @@ function Baris({ nama, ok, nilai, catatan }: { nama: string; ok: boolean; nilai:
       </span>
       <div className="flex-1 min-w-0">
         <p className="text-sm text-navy-900 leading-snug">
-          {nama} <span className="text-gray-400 font-normal">· {nilai}</span>
+          {nama} <span className="text-gray-500 font-normal">· {nilai}</span>
         </p>
         {catatan && <p className="text-[11px] text-gray-500 mt-0.5 break-words leading-relaxed">{catatan}</p>}
       </div>
@@ -119,7 +119,7 @@ export default function PanelSistem() {
           </span>
         )}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          className={`text-gray-400 transition-transform duration-200 ${buka ? "rotate-180" : ""}`}>
+          className={`text-gray-500 transition-transform duration-200 ${buka ? "rotate-180" : ""}`}>
           <path d="m6 9 6 6 6-6" />
         </svg>
       </button>
@@ -185,9 +185,9 @@ export default function PanelSistem() {
                         {LABEL_AKSI[j.aksi] || j.aksi}
                         {j.namaSasaran && <> · <span className="text-gray-600">{j.namaSasaran}</span></>}
                       </p>
-                      {j.rincian && <p className="text-[11px] text-gray-400 mt-0.5 break-words">{j.rincian}</p>}
+                      {j.rincian && <p className="text-[11px] text-gray-500 mt-0.5 break-words">{j.rincian}</p>}
                     </div>
-                    <span className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">{waktuRelatif(j.padaMs)}</span>
+                    <span className="text-[10px] text-gray-500 shrink-0 whitespace-nowrap">{waktuRelatif(j.padaMs)}</span>
                   </li>
                 ))}
               </ul>
@@ -209,14 +209,14 @@ export default function PanelSistem() {
                       style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
                       <div className="flex items-start justify-between gap-3">
                         <p className="text-sm font-medium text-navy-900 break-words min-w-0">{g.pesan}</p>
-                        <span className="text-[10px] text-gray-400 shrink-0 whitespace-nowrap">{waktuRelatif(g.padaMs)}</span>
+                        <span className="text-[10px] text-gray-500 shrink-0 whitespace-nowrap">{waktuRelatif(g.padaMs)}</span>
                       </div>
                       <p className="text-[11px] text-gray-500 mt-1.5">
                         {g.nama || "Tanpa nama"}{g.peran ? ` · ${g.peran}` : ""}
                         {g.halaman ? ` · ${g.halaman}` : ""}
                       </p>
                       {g.perangkat && (
-                        <p className="text-[10px] text-gray-400 mt-1 truncate" title={g.perangkat}>{g.perangkat}</p>
+                        <p className="text-[10px] text-gray-500 mt-1 truncate" title={g.perangkat}>{g.perangkat}</p>
                       )}
                     </li>
                   ))}
@@ -317,7 +317,7 @@ export default function PanelSistem() {
                   {status.deployment.pesanCommit && (
                     <p className="text-[11px] text-gray-500 break-words">“{status.deployment.pesanCommit}”</p>
                   )}
-                  <p className="text-[11px] text-gray-400 pt-1">
+                  <p className="text-[11px] text-gray-500 pt-1">
                     Zona waktu server: {status.zonaServer} · Nilai variabel tidak pernah ditampilkan di sini,
                     hanya panjangnya.
                   </p>

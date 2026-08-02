@@ -4,7 +4,7 @@ import Protected from "@/components/Protected";
 import Avatar from "@/components/Avatar";
 import Sheet from "@/components/Sheet";
 import { useAuth } from "@/context/AuthContext";
-import { Pesan, Kosong, Skeleton, Segmen, KepalaHalaman } from "@/components/ui";
+import { Pesan, Kosong, Skeleton, Segmen, KepalaHalaman, Halaman } from "@/components/ui";
 import { pesanError } from "@/lib/users";
 import { tanggalHariIni, geserHari } from "@/lib/absensi";
 import { kecilkanGambar, ukuranKb } from "@/lib/gambar";
@@ -259,7 +259,7 @@ function IzinInner() {
   const statTinjau = tinjau ? riwayatOrang(daftar, tinjau.userId, bulanIni) : null;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <Halaman lebar="sedang">
       <KepalaHalaman
         atas="Ketidakhadiran"
         judul={pembina ? "Persetujuan Izin" : "Izin & Sakit"}
@@ -385,12 +385,12 @@ function IzinInner() {
 
                   <p className="text-sm text-navy-900 mt-1.5 font-medium">
                     {labelRentang(i.tanggalMulai, i.tanggalSelesai)}
-                    <span className="text-gray-400 font-normal"> · {i.jumlahHari} hari</span>
+                    <span className="text-gray-500 font-normal"> · {i.jumlahHari} hari</span>
                   </p>
                   <p className="text-sm text-gray-600 mt-1 break-words line-clamp-2">{i.alasan}</p>
 
                   {i.status !== "menunggu" && i.namaPemroses && (
-                    <p className="text-[11px] text-gray-400 mt-1.5 break-words">
+                    <p className="text-[11px] text-gray-500 mt-1.5 break-words">
                       Diproses oleh {i.namaPemroses}
                       {i.catatan ? ` · “${i.catatan}”` : ""}
                     </p>
@@ -448,7 +448,7 @@ function IzinInner() {
         })}
       </div>
 
-      <p className="text-center text-[11px] text-gray-400 anim-fade-up d-4">
+      <p className="text-center text-[11px] text-gray-500 anim-fade-up d-4">
         Pengajuan yang disetujui otomatis tercatat sebagai {LABEL_JENIS.izin.toLowerCase()} atau {LABEL_JENIS.sakit.toLowerCase()} di riwayat kehadiran.
       </p>
 
@@ -521,7 +521,7 @@ function IzinInner() {
               onChange={(e) => setForm({ ...form, alasan: e.target.value })}
               placeholder="Contoh: Demam sejak semalam, sudah periksa ke klinik."
               className={inp + " resize-none"} />
-            <p className="text-[11px] text-gray-400 mt-1 text-right">{form.alasan.length}/500</p>
+            <p className="text-[11px] text-gray-500 mt-1 text-right">{form.alasan.length}/500</p>
           </div>
 
           {/* ---------- Foto surat dokter ---------- */}
@@ -530,7 +530,7 @@ function IzinInner() {
               Foto surat dokter{" "}
               {suratWajib
                 ? <span className="text-telkomRed font-semibold">— wajib</span>
-                : <span className="text-gray-400">— bila ada</span>}
+                : <span className="text-gray-500">— bila ada</span>}
             </label>
 
             {bukti ? (
@@ -540,7 +540,7 @@ function IzinInner() {
                   <img src={bukti} alt="Surat dokter" className="w-full max-h-56 object-contain bg-gray-50" />
                 </button>
                 <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-gray-100">
-                  <span className="text-[11px] text-gray-400">{ukuranKb(bukti)} KB · ketuk untuk memperbesar</span>
+                  <span className="text-[11px] text-gray-500">{ukuranKb(bukti)} KB · ketuk untuk memperbesar</span>
                   <div className="flex items-center gap-3 shrink-0">
                     <label className="text-[11px] font-medium text-navy-900 press cursor-pointer">
                       Ganti
@@ -564,14 +564,14 @@ function IzinInner() {
                 suratWajib ? "border-telkomRed/40 bg-red-50/40" : "border-gray-200 bg-gray-50/60"
               }`}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
-                  className={suratWajib ? "text-telkomRed" : "text-gray-400"}>
+                  className={suratWajib ? "text-telkomRed" : "text-gray-500"}>
                   <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z" />
                   <circle cx="12" cy="13" r="3.5" />
                 </svg>
                 <span className="text-xs font-medium text-navy-900">
                   {olahFoto ? "Memproses foto..." : "Ambil atau pilih foto"}
                 </span>
-                <span className="text-[11px] text-gray-400">Foto akan dikecilkan otomatis</span>
+                <span className="text-[11px] text-gray-500">Foto akan dikecilkan otomatis</span>
                 <input type="file" accept="image/*" capture="environment" className="hidden" disabled={olahFoto}
                   onChange={async (ev) => {
                     const f = ev.target.files?.[0] || null;
@@ -590,7 +590,7 @@ function IzinInner() {
             )}
           </div>
 
-          <p className="text-[11px] text-gray-400 leading-relaxed">
+          <p className="text-[11px] text-gray-500 leading-relaxed">
             Alasan yang jelas mempercepat persetujuan. Pembimbing melihat persis
             apa yang kamu tulis di sini.
           </p>
@@ -665,7 +665,7 @@ function IzinInner() {
                   </span>
                 ))}
                 {(tinjau.tanggal || []).length > 12 && (
-                  <span className="text-[10px] text-gray-400 self-center">
+                  <span className="text-[10px] text-gray-500 self-center">
                     +{(tinjau.tanggal || []).length - 12} lagi
                   </span>
                 )}
@@ -689,12 +689,12 @@ function IzinInner() {
                     className="block w-full rounded-xl border border-gray-200 overflow-hidden press">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={fotoTinjau} alt="Surat dokter" className="w-full max-h-60 object-contain bg-gray-50" />
-                    <span className="block text-[11px] text-gray-400 py-2 border-t border-gray-100">
+                    <span className="block text-[11px] text-gray-500 py-2 border-t border-gray-100">
                       Ketuk untuk memperbesar
                     </span>
                   </button>
                 ) : (
-                  <p className="text-xs text-gray-400 rounded-xl bg-gray-50 border border-gray-100 p-3">
+                  <p className="text-xs text-gray-500 rounded-xl bg-gray-50 border border-gray-100 p-3">
                     Suratnya gagal dimuat. Coba tutup lalu buka lagi pengajuan ini.
                   </p>
                 )
@@ -705,7 +705,7 @@ function IzinInner() {
                   berlaku — mintakan susulan sebelum menyetujui.
                 </p>
               ) : (
-                <p className="text-xs text-gray-400 rounded-xl bg-gray-50 border border-gray-100 p-3">
+                <p className="text-xs text-gray-500 rounded-xl bg-gray-50 border border-gray-100 p-3">
                   Tidak dilampirkan. Untuk {LABEL_JENIS[tinjau.jenis].toLowerCase()} sepanjang
                   ini surat memang tidak diwajibkan.
                 </p>
@@ -714,7 +714,7 @@ function IzinInner() {
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Catatan <span className="text-gray-400">— wajib bila menolak</span>
+                Catatan <span className="text-gray-500">— wajib bila menolak</span>
               </label>
               <textarea rows={2} value={catatan} maxLength={300}
                 onChange={(e) => setCatatan(e.target.value)}
@@ -746,7 +746,7 @@ function IzinInner() {
           </button>
         </div>
       )}
-    </div>
+    </Halaman>
   );
 }
 

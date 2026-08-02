@@ -46,16 +46,21 @@ export function SkeletonKartu() {
 /* ---------- Keadaan kosong ---------- */
 export function Kosong({ judul, pesan, ikon }: { judul: string; pesan?: string; ikon?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center py-10 text-center anim-fade-up">
-      <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-3 text-gray-400">
+    // Padatnya disengaja. Keadaan kosong itu bukan berita, cuma keterangan —
+    // dan versi sebelumnya memakan hampir satu layar penuh di ponsel untuk
+    // mengabarkan bahwa tidak ada apa-apa.
+    <div className="flex flex-col items-center justify-center py-7 text-center anim-fade-up">
+      <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-2.5 text-gray-500">
         {ikon || (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
           </svg>
         )}
       </div>
       <p className="text-sm font-medium text-navy-900">{judul}</p>
-      {pesan && <p className="text-xs text-gray-400 mt-1 max-w-[15rem]">{pesan}</p>}
+      {/* gray-500, bukan gray-400: pada latar putih yang 400 nyaris tidak terbaca
+          di layar ponsel yang kena cahaya matahari — dan kios ini dipakai pagi */}
+      {pesan && <p className="text-xs text-gray-500 mt-1 max-w-[17rem] leading-relaxed">{pesan}</p>}
     </div>
   );
 }
@@ -108,6 +113,47 @@ export function Segmen<T extends string>({
   );
 }
 
+/* ---------- Kerangka halaman yang seragam ---------- */
+
+/**
+ * Lebar isi halaman, dipilih menurut jenis isinya — bukan per selera halaman.
+ *
+ * Sebelumnya tiap halaman menentukan lebarnya sendiri, dan hasilnya lima nilai
+ * berbeda: lg, 2xl, 3xl, 4xl, dan penuh. Berpindah dari Beranda ke Izin lalu ke
+ * Profil membuat isinya melompat tiga kali di layar lebar — itu yang membuat
+ * aplikasi terasa seperti kumpulan halaman, bukan satu produk.
+ *
+ * Sekarang hanya ada tiga, dan pilihannya beralasan:
+ *   penuh  — tabel dan papan angka, memang butuh ruang
+ *   sedang — daftar yang dibaca satu per satu
+ *   sempit — formulir satu kolom, di mana baris terlalu lebar justru
+ *            melelahkan mata
+ */
+export type LebarHalaman = "penuh" | "sedang" | "sempit";
+
+const LEBAR: Record<LebarHalaman, string> = {
+  penuh: "max-w-6xl",
+  sedang: "max-w-3xl",
+  sempit: "max-w-2xl",
+};
+
+/**
+ * Pembungkus isi halaman.
+ *
+ * Selain lebar, ia menyeragamkan jarak antar bagian. Dulu ada lima irama
+ * berbeda di lima halaman — perbedaan yang tidak pernah disengaja siapa pun,
+ * hanya menumpuk seiring halaman ditambah satu per satu.
+ */
+export function Halaman({
+  lebar = "sedang",
+  children,
+}: {
+  lebar?: LebarHalaman;
+  children: React.ReactNode;
+}) {
+  return <div className={`${LEBAR[lebar]} mx-auto space-y-4 sm:space-y-5`}>{children}</div>;
+}
+
 /* ---------- Judul halaman yang seragam ---------- */
 export function KepalaHalaman({
   atas, judul, keterangan, aksi,
@@ -120,7 +166,7 @@ export function KepalaHalaman({
   return (
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 anim-fade-up">
       <div className="min-w-0">
-        <span className="text-[11px] font-semibold tracking-widest uppercase text-gray-400">{atas}</span>
+        <span className="text-[11px] font-semibold tracking-widest uppercase text-gray-500">{atas}</span>
         <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{judul}</h1>
         {keterangan && <p className="text-sm text-gray-500 mt-1 max-w-xl">{keterangan}</p>}
       </div>

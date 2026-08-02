@@ -6,7 +6,7 @@ import Avatar from "@/components/Avatar";
 import CincinProgres from "@/components/CincinProgres";
 import Kalender, { NavigasiBulan, BULAN } from "@/components/Kalender";
 import { useAuth } from "@/context/AuthContext";
-import { CountUp, SkeletonKartu, Skeleton, Kosong, Segmen, Pesan } from "@/components/ui";
+import { CountUp, SkeletonKartu, Skeleton, Kosong, Segmen, Pesan, Halaman } from "@/components/ui";
 import { gaya, terhitungHadir } from "@/lib/status";
 import { izinMenunggu, Izin } from "@/lib/izin";
 import {
@@ -74,7 +74,16 @@ const salam = () => {
 function Clock() {
   const [now, setNow] = useState("");
   useEffect(() => {
-    const f = () => setNow(new Date().toLocaleTimeString("id-ID", { hour12: false }));
+    // Dirakit sendiri, sama seperti di halaman kios. Format Indonesia
+    // memisahkan jam dengan titik ("13.28.18"), yang lebih terbaca sebagai
+    // nomor versi daripada penunjuk waktu — dan dua halaman yang menampilkan
+    // jam dengan cara berbeda membuat aplikasinya terasa dirakit sepotong-
+    // sepotong.
+    const dua = (n: number) => String(n).padStart(2, "0");
+    const f = () => {
+      const d = new Date();
+      setNow(`${dua(d.getHours())}:${dua(d.getMinutes())}:${dua(d.getSeconds())}`);
+    };
     f(); const id = setInterval(f, 1000); return () => clearInterval(id);
   }, []);
   const tanggal = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long" });
@@ -197,7 +206,7 @@ function Chart({ data, mode }: { data: { label: string; hadir: number; telat: nu
                 <span className="absolute top-1 left-1/2 -translate-x-1/2 text-[11px] font-semibold text-gray-600">{d.hadir + d.telat}</span>
               )}
             </div>
-            <span className="text-[11px] sm:text-xs text-gray-400">{d.label}</span>
+            <span className="text-[11px] sm:text-xs text-gray-500">{d.label}</span>
           </div>
         ))}
       </div>
@@ -212,7 +221,7 @@ function Legend() {
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Hadir</span>
         <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" /> Terlambat</span>
       </div>
-      <span className="text-[11px] text-gray-400">7 hari terakhir</span>
+      <span className="text-[11px] text-gray-500">7 hari terakhir</span>
     </div>
   );
 }
@@ -243,7 +252,7 @@ function BelumAbsen({ orang }: { orang: any[] }) {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="m5 13 4 4L19 7" /></svg>
         </div>
         <p className="text-sm font-medium text-navy-900">Semua sudah absen</p>
-        <p className="text-xs text-gray-400 mt-1">Tidak ada peserta yang tertinggal hari ini.</p>
+        <p className="text-xs text-gray-500 mt-1">Tidak ada peserta yang tertinggal hari ini.</p>
       </div>
     );
 
@@ -256,7 +265,7 @@ function BelumAbsen({ orang }: { orang: any[] }) {
             <Avatar name={u.name} foto={u.foto} size={36} />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-navy-900 truncate">{u.name}</p>
-              <p className="text-xs text-gray-400 truncate">{u.jurusan || u.kampus || "—"}</p>
+              <p className="text-xs text-gray-500 truncate">{u.jurusan || u.kampus || "—"}</p>
             </div>
             {!u.kartuTerdaftar && (
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 shrink-0">
@@ -267,7 +276,7 @@ function BelumAbsen({ orang }: { orang: any[] }) {
         ))}
       </ul>
       {orang.length > tampil.length && (
-        <p className="text-xs text-gray-400 pt-3 text-center">+{orang.length - tampil.length} peserta lainnya</p>
+        <p className="text-xs text-gray-500 pt-3 text-center">+{orang.length - tampil.length} peserta lainnya</p>
       )}
     </>
   );
@@ -368,7 +377,7 @@ function DashAdmin({ nama }: { nama: string }) {
   const pct = (n: number, d: number) => (d ? Math.round((n / d) * 100) : 0);
 
   return (
-    <div className="space-y-5 md:space-y-6">
+    <Halaman lebar="penuh">
       {/* Header */}
       <div className="anim-fade-up">
         <div>
@@ -454,8 +463,8 @@ function DashAdmin({ nama }: { nama: string }) {
           <p className="text-xs text-slate-300">Jam absensi dicatat dari waktu server, bukan perangkat pengguna.</p>
         </div>
       </div>
-      <p className="text-center text-[10px] sm:text-xs text-gray-400 tracking-widest uppercase">InfraNexia Systems &copy; {new Date().getFullYear()}</p>
-    </div>
+      <p className="text-center text-[10px] sm:text-xs text-gray-500 tracking-widest uppercase">InfraNexia Systems &copy; {new Date().getFullYear()}</p>
+    </Halaman>
   );
 }
 
@@ -557,7 +566,7 @@ function DashPembina({ nama }: { nama: string }) {
   });
 
   return (
-    <div className="space-y-5 md:space-y-6">
+    <Halaman lebar="penuh">
       {/* Header */}
       <div className="anim-fade-up">
         <div>
@@ -661,7 +670,7 @@ function DashPembina({ nama }: { nama: string }) {
                     <Avatar name={u.name} foto={u.foto} size={38} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-navy-900 truncate">{u.name}</p>
-                      <p className="text-[11px] text-gray-400 truncate">
+                      <p className="text-[11px] text-gray-500 truncate">
                         {a?.jamMasuk ? `Masuk ${jam(a.jamMasuk)}` : u.jurusan || u.kampus || "—"}
                         {a?.jamPulang ? ` · Pulang ${jam(a.jamPulang)}` : ""}
                       </p>
@@ -695,8 +704,8 @@ function DashPembina({ nama }: { nama: string }) {
         </div>
       </div>
 
-      <p className="text-center text-[10px] sm:text-xs text-gray-400 tracking-widest uppercase">InfraNexia Systems &copy; {new Date().getFullYear()}</p>
-    </div>
+      <p className="text-center text-[10px] sm:text-xs text-gray-500 tracking-widest uppercase">InfraNexia Systems &copy; {new Date().getFullYear()}</p>
+    </Halaman>
   );
 }
 
@@ -821,7 +830,7 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
     : { nada: "emerald" as const, judul: "Absensi hari ini lengkap", pesan: `Masuk ${jam(absen?.jamMasuk)} · Pulang ${jam(absen?.jamPulang)}` };
 
   return (
-    <div className="space-y-5 md:space-y-6">
+    <Halaman lebar="penuh">
       <div className="anim-fade-up">
         <Clock />
         <h1 className="text-xl sm:text-2xl font-bold text-navy-900 mt-1">{salam()}, {namaDepan(nama)}</h1>
@@ -872,15 +881,15 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
             anak={
               <>
                 <span className="text-2xl font-bold text-navy-900 tabular-nums">{rekap.persenKehadiran}%</span>
-                <span className="text-[10px] uppercase tracking-wide text-gray-400 mt-1">kehadiran</span>
+                <span className="text-[10px] uppercase tracking-wide text-gray-500 mt-1">kehadiran</span>
               </>
             }
           />
           <div className="min-w-0 flex-1">
-            <p className="text-xs uppercase tracking-widest text-gray-400">{BULAN[bulan - 1]} {tahun}</p>
+            <p className="text-xs uppercase tracking-widest text-gray-500">{BULAN[bulan - 1]} {tahun}</p>
             <p className="text-2xl font-bold text-navy-900 mt-1 tabular-nums leading-none">
               {rekap.hadir + rekap.terlambat}
-              <span className="text-base font-medium text-gray-400"> dari {rekap.hariKerja} hari</span>
+              <span className="text-base font-medium text-gray-500"> dari {rekap.hariKerja} hari</span>
             </p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-gray-500">
               <span className="inline-flex items-center gap-1.5"><i className="w-2 h-2 rounded-full bg-amber-400" />Terlambat <b className="text-navy-900 tabular-nums">{rekap.terlambat}</b></span>
@@ -933,8 +942,8 @@ function DashMagang({ nama, uid, punyaKartu }: { nama: string; uid: string; puny
         </div>
       </div>
 
-      <p className="text-center text-[10px] sm:text-xs text-gray-400 tracking-widest uppercase">InfraNexia Systems &copy; {new Date().getFullYear()}</p>
-    </div>
+      <p className="text-center text-[10px] sm:text-xs text-gray-500 tracking-widest uppercase">InfraNexia Systems &copy; {new Date().getFullYear()}</p>
+    </Halaman>
   );
 }
 
