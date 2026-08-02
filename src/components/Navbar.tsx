@@ -92,6 +92,9 @@ export default function Navbar() {
     // lebar 390 px label penuh mulai saling berdesakan sampai terpotong.
     { href: "/dashboard", label: "Dashboard", pendek: "Beranda", icon: I.dashboard, roles: ["admin", "pembimbing", "magang"] },
     { href: "/kios", label: "Scan Card", pendek: "Scan", icon: I.absensi, roles: ["admin", "pembimbing"] },
+    // Arah pemindaiannya berbeda: peserta memindai layar kios, bukan sebaliknya.
+    // Karena itu menunya terpisah dan hanya tampil untuk peserta.
+    { href: "/absen", label: "Absen", pendek: "Absen", icon: I.absensi, roles: ["magang"] },
     { href: "/kegiatan", label: "Kegiatan", pendek: "Kegiatan", icon: I.kegiatan, roles: ["admin", "pembimbing", "magang"] },
     { href: "/izin", label: "Izin", pendek: "Izin", icon: I.izin, roles: ["admin", "pembimbing", "magang"] },
     { href: "/riwayat", label: "Riwayat", pendek: "Riwayat", icon: I.riwayat, roles: ["admin", "pembimbing", "magang"] },

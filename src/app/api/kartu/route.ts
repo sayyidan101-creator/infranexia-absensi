@@ -6,6 +6,7 @@ import {
   waktuLokal, keMenit, jarakMeter,
 } from "@/server/absensi";
 import { buatKode, hashKode, kodeValid, labelAman, normalkanKode } from "@/server/kartu";
+import { buatTokenLayar, periksaTokenLayar, DETIK_PUTAR } from "@/server/sesiLayar";
 import { catatJejak, namaUser } from "@/server/jejak";
 import { dalamPeriode, labelPeriode } from "@/lib/periode";
 
@@ -48,10 +49,19 @@ const MAKS_MUNDUR_DETIK = 30 * 60;
  * Kartu magang ber-QR.
  *
  * body.aksi = "terbitkan" | "cabut" | "cetak" | "absen" | "manual"
+ *           | "tokenLayar" | "hadir"
  *
- * Pencatatan lewat "absen" hanya boleh dilakukan admin atau pembimbing —
+ * Ada dua arah pencatatan, dan keduanya menjaga hal yang sama.
+ *
+ * "absen" — operator memindai kartu peserta. Hanya admin atau pembimbing,
  * yaitu perangkat kios di kantor. Peserta tidak bisa memanggilnya dari
- * ponselnya sendiri, sehingga absen dari rumah tidak mungkin.
+ * ponselnya sendiri.
+ *
+ * "hadir" — peserta memindai kode di layar kios. Dipanggil dari ponsel
+ * peserta sendiri, tanpa operator; yang menggantikan peran operator adalah
+ * kodenya, yang hanya terbaca dari layar di kantor dan berumur dua puluh
+ * detik. Absen dari rumah tetap tidak mungkin, karena layarnya tidak ada
+ * di rumah.
  */
 export async function POST(req: Request) {
   try {
@@ -62,6 +72,8 @@ export async function POST(req: Request) {
     if (body?.aksi === "cetak") return await cetak(req, body);
     if (body?.aksi === "absen") return await absenKartu(req, body);
     if (body?.aksi === "manual") return await absenManual(req, body);
+    if (body?.aksi === "tokenLayar") return await tokenLayar(req);
+    if (body?.aksi === "hadir") return await absenLayar(req, body);
 
     throw new KesalahanAbsen("Aksi tidak dikenal.");
   } catch (e: any) {
@@ -235,6 +247,54 @@ async function absenKartu(req: Request, d: any) {
   return await catat(pemilik, userSnap.data() as any, d, pembina, "kartu");
 }
 
+// ---------- Kode berputar di layar kios ----------
+
+/**
+ * Terbitkan kode yang ditampilkan layar kios.
+ *
+ * Hanya pembina — layar ini yang menjadi bukti kehadiran, jadi kodenya tidak
+ * boleh bisa diminta dari ponsel peserta. Kalau peserta bisa menerbitkan
+ * kodenya sendiri, ia tidak perlu datang untuk membacanya.
+ */
+async function tokenLayar(req: Request) {
+  await pastikanPembina(req);
+  const { token, berlakuSampai } = buatTokenLayar();
+  return NextResponse.json({ token, berlakuSampai, detikPutar: DETIK_PUTAR });
+}
+
+/**
+ * Peserta mencatat kehadirannya sendiri setelah memindai layar kios.
+ *
+ * Berbeda dari `absen`, di sini pemanggilnya adalah peserta itu sendiri —
+ * tidak ada operator. Yang menggantikan peran operator adalah tokennya: ia
+ * hanya bisa dibaca dari layar di kantor, dan umurnya dua puluh detik.
+ */
+async function absenLayar(req: Request, d: any) {
+  const uid = await pastikanLogin(req);
+
+  const periksa = periksaTokenLayar(d?.token);
+  if (!periksa.ok) {
+    if (periksa.alasan === "kedaluwarsa") {
+      throw new KesalahanAbsen(
+        "Kodenya sudah berganti. Arahkan kamera ke layar lagi — kode di layar berubah tiap 20 detik.",
+        410
+      );
+    }
+    throw new KesalahanAbsen(
+      "Ini bukan kode absensi InfraNexia. Pindai kode yang tampil di layar kios kantor.",
+      400
+    );
+  }
+
+  const snap = await adminDb().doc(`users/${uid}`).get();
+  if (!snap.exists) throw new KesalahanAbsen("Profil kamu tidak ditemukan.", 403);
+  const user = snap.data() as any;
+
+  // Operator diisi peserta sendiri — catatannya jujur menyebut tidak ada
+  // perantara, dan `sumber: "layar"` membuatnya bisa dibedakan saat ditinjau.
+  return await catat(uid, user, d, { uid, nama: user.name || "Peserta" }, "layar");
+}
+
 // ---------- Pencatatan manual (cadangan bila kartu tertinggal) ----------
 async function absenManual(req: Request, d: any) {
   const pembina = await pastikanPembina(req);
@@ -253,7 +313,7 @@ async function catat(
   user: any,
   d: any,
   pembina: { uid: string; nama: string },
-  sumber: "kartu" | "manual"
+  sumber: "kartu" | "manual" | "layar"
 ) {
   if (user.role !== "magang") {
     throw new KesalahanAbsen("Kartu ini bukan milik peserta magang.", 403);

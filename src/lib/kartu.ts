@@ -71,6 +71,36 @@ export async function absenManual(
   });
 }
 
+// ---------------- Kode berputar di layar kios ----------------
+
+export interface TokenLayar {
+  token: string;
+  /** Milidetik epoch saat kode ini berhenti berlaku. */
+  berlakuSampai: number;
+  detikPutar: number;
+}
+
+/** Minta kode baru untuk ditampilkan di layar kios (pembina). */
+export async function ambilTokenLayar(): Promise<TokenLayar> {
+  return panggilApi<TokenLayar>("/api/kartu", { aksi: "tokenLayar" });
+}
+
+/**
+ * Catat kehadiran sendiri setelah memindai layar kios.
+ *
+ * Dipanggil dari ponsel peserta, bukan dari kios. Yang membuatnya sah adalah
+ * tokennya — hanya terbaca dari layar di kantor, dan berumur dua puluh detik.
+ */
+export async function absenDenganLayar(
+  token: string,
+  lat?: number | null,
+  lng?: number | null
+): Promise<HasilAbsenKartu> {
+  return panggilApi<HasilAbsenKartu>("/api/kartu", {
+    aksi: "hadir", token, lat: lat ?? null, lng: lng ?? null,
+  });
+}
+
 /** Bentuk yang dicetak di kartu: `ABCD-EFGH-JKMN`. */
 export function formatKode(kode: string): string {
   const bersih = String(kode || "").toUpperCase().replace(/[^A-Z0-9]/g, "");

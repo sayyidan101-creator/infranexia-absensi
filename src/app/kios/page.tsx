@@ -5,7 +5,8 @@ import Protected from "@/components/Protected";
 import Avatar from "@/components/Avatar";
 import Sheet from "@/components/Sheet";
 import { db } from "@/lib/firebase";
-import { Pesan, Konfeti, Kosong } from "@/components/ui";
+import { Pesan, Konfeti, Kosong, Segmen } from "@/components/ui";
+import KodeLayar from "@/components/KodeLayar";
 import { pesanError } from "@/lib/users";
 import { kameraTersedia, mulaiPindaiQr, PemindaiQr } from "@/lib/pindaiQr";
 import { absenDenganKartu, absenManual, HasilAbsenKartu } from "@/lib/kartu";
@@ -60,6 +61,17 @@ function ScanCardInner() {
   const [layarPenuh, setLayarPenuh] = useState(false);
   const [antre, setAntre] = useState(0);
   const [mengirimAntre, setMengirimAntre] = useState(false);
+  /**
+   * Dua cara memakai mesin ini.
+   *
+   * "pindai" — operator memindai kartu peserta. Perlu orang yang menunggui.
+   * "layar"  — layar menampilkan kode, peserta memindai dengan ponselnya.
+   *            Tidak perlu operator dan tidak perlu mencetak kartu.
+   *
+   * Keduanya dipertahankan karena tidak semua peserta punya ponsel yang
+   * memadai, dan kartu tetap jalan tanpa aplikasi apa pun.
+   */
+  const [mode, setMode] = useState<"pindai" | "layar">("pindai");
 
   // Cadangan: ketik kode kartu, atau pilih nama peserta
   const [manualBuka, setManualBuka] = useState(false);
@@ -304,7 +316,9 @@ function ScanCardInner() {
               <span className="text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-400">
                 Mesin Absen
               </span>
-              <h1 className="text-2xl sm:text-3xl font-bold mt-1">Scan Card</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold mt-1">
+                {mode === "layar" ? "Absensi Mandiri" : "Scan Card"}
+              </h1>
               <p className="text-sm text-slate-300 mt-1">
                 {salam()} · jam kerja {cfg.jamMasuk}–{cfg.jamPulang}
               </p>
@@ -319,12 +333,21 @@ function ScanCardInner() {
           </div>
 
           <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/10">
-            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
-              aktif ? "bg-emerald-500/20 text-emerald-300" : "bg-white/10 text-slate-300"
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${aktif ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
-              {aktif ? "Kamera aktif" : "Kamera mati"}
-            </span>
+            {/* Keadaan kamera hanya berarti di mode pindai. Di mode layar,
+                "Kamera mati" justru terbaca seperti ada yang rusak. */}
+            {mode === "pindai" ? (
+              <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
+                aktif ? "bg-emerald-500/20 text-emerald-300" : "bg-white/10 text-slate-300"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${aktif ? "bg-emerald-400 animate-pulse" : "bg-slate-400"}`} />
+                {aktif ? "Kamera aktif" : "Kamera mati"}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Siap dipindai
+              </span>
+            )}
             {antre > 0 && (
               <button onClick={kirimAntrean} disabled={mengirimAntre}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 press disabled:opacity-60">
@@ -350,7 +373,31 @@ function ScanCardInner() {
           </div>
         </div>
 
-        {!didukung && (
+        {/* ============ PILIH CARA ============ */}
+        <div className="anim-fade-up">
+          <Segmen<"pindai" | "layar">
+            nilai={mode}
+            ubah={(m) => {
+              // Kameranya dimatikan saat pindah ke mode layar. Membiarkannya
+              // menyala berarti lampu kamera terus hidup di meja depan tanpa
+              // ada yang memakainya.
+              if (m === "layar" && aktif) berhenti();
+              setGalat("");
+              setMode(m);
+            }}
+            opsi={[
+              { nilai: "pindai", label: "Pindai Kartu" },
+              { nilai: "layar", label: "Tampilkan Kode" },
+            ]}
+          />
+          <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
+            {mode === "pindai"
+              ? "Operator memindai kartu peserta. Peserta tidak perlu membawa ponsel."
+              : "Layar menampilkan kode, peserta memindai dengan ponselnya sendiri. Tanpa operator, tanpa cetak kartu."}
+          </p>
+        </div>
+
+        {!didukung && mode === "pindai" && (
           <Pesan tipe="err">
             Browser ini tidak bisa mengakses kamera. Pastikan halaman dibuka lewat HTTPS,
             atau pakai pencatatan cadangan di bawah.
@@ -358,8 +405,12 @@ function ScanCardInner() {
         )}
         {galat && <Pesan tipe="err">{galat}</Pesan>}
 
+        {mode === "layar" && <KodeLayar jamKerja={`${cfg.jamMasuk}–${cfg.jamPulang}`} />}
+
         {/* ============ AREA PINDAI ============ */}
-        <div className="relative card overflow-hidden anim-fade-up d-1">
+        {/* Disembunyikan dengan CSS, bukan dilepas dari DOM: elemen video harus
+            tetap terpasang supaya kamera bisa dinyalakan lagi tanpa kedip. */}
+        <div className={`relative card overflow-hidden anim-fade-up d-1 ${mode === "layar" ? "hidden" : ""}`}>
           <Konfeti aktif={!!hasil && !hasil.diulang} />
 
           <div className="relative bg-navy-900 aspect-[4/3] sm:aspect-[16/10] overflow-hidden">
